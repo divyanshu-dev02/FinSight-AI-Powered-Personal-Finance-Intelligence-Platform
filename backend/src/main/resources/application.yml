@@ -1,0 +1,57 @@
+spring:
+  application:
+    name: finsight-backend
+
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:finsight}
+    username: ${DB_USERNAME:finsight}
+    password: ${DB_PASSWORD:finsight_local_password}
+    driver-class-name: org.postgresql.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: none
+    open-in-view: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        jdbc:
+          time_zone: UTC
+
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: true
+
+  jackson:
+    serialization:
+      write-dates-as-timestamps: false
+    default-property-inclusion: non_null
+
+server:
+  port: 8080
+  error:
+    include-message: never
+    include-binding-errors: never
+    include-stacktrace: never
+
+jwt:
+  secret: ${JWT_SECRET:local-dev-secret-must-be-at-least-256-bits-long-change-in-production}
+  access-ttl-seconds: ${JWT_ACCESS_TTL_SECONDS:900}
+  refresh-ttl-seconds: ${JWT_REFRESH_TTL_SECONDS:2592000}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      show-details: when_authorized
+
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+

@@ -1,0 +1,77 @@
+version: "3.9"
+
+services:
+  # ── PostgreSQL ──────────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    container_name: finsight-postgres
+    restart: unless-stopped
+    ports:
+      - "${DB_PORT:-5432}:5432"
+    environment:
+      POSTGRES_DB: ${DB_NAME:-finsight}
+      POSTGRES_USER: ${DB_USERNAME:-finsight}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-finsight_local_password}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME:-finsight} -d ${DB_NAME:-finsight}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - finsight-network
+
+  # ── Redis ───────────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: finsight-redis
+    restart: unless-stopped
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - finsight-network
+
+  # ── Mailpit (local email testing) ──────────────────────────
+  mailpit:
+    image: axllent/mailpit:latest
+    container_name: finsight-mailpit
+    restart: unless-stopped
+    ports:
+      - "1025:1025"   # SMTP
+      - "8025:8025"   # Web UI
+    networks:
+      - finsight-network
+
+  # ── MinIO (S3-compatible object storage) ───────────────────
+  minio:
+    image: minio/minio:latest
+    container_name: finsight-minio
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    ports:
+      - "9000:9000"   # API
+      - "9001:9001"   # Console UI
+    environment:
+      MINIO_ROOT_USER: ${S3_ACCESS_KEY:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${S3_SECRET_KEY:-minioadmin}
+    volumes:
+      - miniodata:/data
+    networks:
+      - finsight-network
+
+volumes:
+  pgdata:
+  redisdata:
+  miniodata:
+
+networks:
+  finsight-network:
+    driver: bridge

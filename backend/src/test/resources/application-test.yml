@@ -1,0 +1,17 @@
+spring:
+  datasource:
+    url: jdbc:tc:postgresql:16-alpine:///finsight
+    username: finsight
+    password: finsight
+    driver-class-name: org.testcontainers.jdbc.ContainerDatabaseDriver
+  jpa:
+    hibernate:
+      ddl-auto: validate
+  flyway:
+    enabled: true
+
+jwt:
+  secret: test-secret-must-be-at-least-256-bits-long-for-hmac-sha256-signing-algorithm
+  access-ttl-seconds: 300
+  refresh-ttl-seconds: 3600
+

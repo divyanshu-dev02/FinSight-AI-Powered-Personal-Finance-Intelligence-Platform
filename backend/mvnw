@@ -1,0 +1,57 @@
+#!/bin/sh
+# ----------------------------------------------------------------------------
+# Maven Start Up Batch script
+# ----------------------------------------------------------------------------
+
+set -e
+
+# OS specific support.
+darwin=false
+case "`uname`" in
+  Darwin*) darwin=true ;;
+esac
+
+PRG="$0"
+while [ -h "$PRG" ] ; do
+  ls=`ls -ld "$PRG"`
+  link=`expr "$ls" : '.*-> \(.*\)$'`
+  if expr "$link" : '/.*' > /dev/null; then
+    PRG="$link"
+  else
+    PRG=`dirname "$PRG"`"/$link"
+  fi
+done
+
+PRGDIR=`dirname "$PRG"`
+BASE_DIR=`cd "$PRGDIR" >/dev/null; pwd`
+
+# Locate Java
+if [ -z "$JAVA_HOME" ]; then
+  if [ -d "/Library/Java/JavaVirtualMachines/temurin-21.jdk/Contents/Home" ]; then
+    export JAVA_HOME="/Library/Java/JavaVirtualMachines/temurin-21.jdk/Contents/Home"
+  fi
+fi
+
+if [ -n "$JAVA_HOME" ]; then
+  JAVACMD="$JAVA_HOME/bin/java"
+else
+  JAVACMD="java"
+fi
+
+WRAPPER_JAR="$BASE_DIR/.mvn/wrapper/maven-wrapper.jar"
+WRAPPER_LAUNCHER="org.apache.maven.wrapper.MavenWrapperMain"
+
+# Download wrapper jar if not present
+if [ ! -r "$WRAPPER_JAR" ]; then
+  echo "Downloading Maven Wrapper jar..."
+  mkdir -p "$BASE_DIR/.mvn/wrapper"
+  curl -s -f -L -o "$WRAPPER_JAR" "https://repo.maven.apache.org/maven2/org/apache/maven/wrapper/maven-wrapper/3.3.2/maven-wrapper-3.3.2.jar" || true
+fi
+
+if [ -r "$WRAPPER_JAR" ]; then
+  exec "$JAVACMD" -jar "$WRAPPER_JAR" "$@"
+else
+  echo "Maven wrapper jar not found and could not be downloaded."
+  exit 1
+fi
+
