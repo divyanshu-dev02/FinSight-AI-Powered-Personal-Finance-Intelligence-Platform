@@ -1,30 +1,28 @@
-💰 FinSight
+<div align="center">💰 FinSight
 
 AI-Powered Personal Finance Intelligence Platform
 
-"Java" (https://img.shields.io/badge/Java-21-orange?logo=openjdk)
-"Spring Boot" (https://img.shields.io/badge/Spring%20Boot-3.x-brightgreen?logo=springboot)
-"React" (https://img.shields.io/badge/React-18-blue?logo=react)
-"TypeScript" (https://img.shields.io/badge/TypeScript-5-blue?logo=typescript)
-"PostgreSQL" (https://img.shields.io/badge/PostgreSQL-16-blue?logo=postgresql)
+""Java" (https://img.shields.io/badge/Java-21-ED8B00?style=for-the-badge&logo=openjdk&logoColor=white)" (https://openjdk.org/)
+""Spring Boot" (https://img.shields.io/badge/Spring%20Boot-3.x-6DB33F?style=for-the-badge&logo=springboot&logoColor=white)" (https://spring.io/projects/spring-boot)
+""React" (https://img.shields.io/badge/React-18-61DAFB?style=for-the-badge&logo=react&logoColor=black)" (https://react.dev/)
+""TypeScript" (https://img.shields.io/badge/TypeScript-5-3178C6?style=for-the-badge&logo=typescript&logoColor=white)" (https://www.typescriptlang.org/)
+""PostgreSQL" (https://img.shields.io/badge/PostgreSQL-16-4169E1?style=for-the-badge&logo=postgresql&logoColor=white)" (https://www.postgresql.org/)
 
-""Live Demo" (https://img.shields.io/badge/Live%20Demo-Coming%20Soon-orange?style=for-the-badge)" (#)
+FinSight transforms your raw financial data into actionable intelligence. Import transactions, track spending, set budgets, and let AI surface the insights that matter — all from one beautiful dashboard.
 
-FinSight transforms raw financial data into actionable intelligence. Import transactions, track spending, set budgets, and let AI surface the insights that matter — all from one beautiful dashboard.
-
----
+</div>---
 
 ✨ Features
 
 - 📊 Smart Dashboard — Real-time overview of net worth, cash flow, and spending trends.
-- 🏦 Multi-Account Management — Manage bank accounts, credit cards, investments, and crypto wallets in one place.
-- 📥 Transaction Import — Upload CSV, OFX, and QFX files or retrieve transactions through bank integrations.
-- 🏷️ Auto-Categorization — AI-powered transaction categorization that learns your spending habits.
-- 💡 AI Insights — Natural-language spending summaries, anomaly detection, and saving recommendations powered by LLMs (OpenAI, Anthropic, or Google AI).
-- 📈 Budgets & Goals — Set monthly budgets by category and track financial goals.
-- 🔔 Alerts & Notifications — Receive alerts for unusual spending, bill reminders, and budget breaches.
-- 📑 Reports & Export — Generate detailed PDF and CSV reports for any date range.
-- 🔒 Security First — JWT authentication, AES-256 encryption at rest, and role-based access control.
+- 🏦 Multi-Account Management — Connect and manage bank accounts, credit cards, investments, and crypto wallets in one place.
+- 📥 Transaction Import — Upload CSV/OFX/QFX files or pull transactions via bank integrations.
+- 🏷️ Auto-Categorization — AI-powered transaction categorization that learns your habits.
+- 💡 AI Insights — Natural-language spending summaries, anomaly detection, and saving recommendations driven by LLMs (OpenAI, Anthropic, or Google AI).
+- 📈 Budgets & Goals — Set monthly budgets per category and track progress toward financial goals.
+- 🔔 Alerts & Notifications — Configurable alerts for unusual spending, bill reminders, and budget breaches.
+- 📑 Reports & Export — Generate detailed PDF/CSV reports for any date range.
+- 🔒 Security First — JWT authentication, AES-256 data encryption at rest, and role-based access control.
 
 ---
 
@@ -35,8 +33,8 @@ Backend| Java 21, Spring Boot 3, Spring Security, Spring Data JPA
 Frontend| React 18, TypeScript 5, Vite, TailwindCSS
 Database| PostgreSQL 16
 Cache| Redis 7
-AI| OpenAI / Anthropic / Google AI
-Object Storage| MinIO (S3-compatible)
+AI| OpenAI / Anthropic / Google AI (pluggable)
+Object Store| MinIO (S3-compatible)
 Email| Mailpit (local) / SMTP (production)
 CI/CD| GitHub Actions
 
@@ -48,52 +46,32 @@ Tool| Version| Purpose
 Java| 21+| Backend runtime
 Node.js| 20+| Frontend tooling
 Docker| 24+| Infrastructure services
-Make| Any| Task runner (optional)
+Make| any| Task runner (optional)
 
 ---
 
-🚀 Getting Started
+🚀 Quick Start
 
-1. Clone the repository
+1. Clone & configure
 
 git clone https://github.com/your-org/finsight.git
 cd finsight
+cp .env.example .env          # edit .env with your API keys
 
-2. Configure environment variables
+2. Start infrastructure
 
-cp .env.example .env
+make dev-up                   # starts Postgres, Redis, MinIO, Mailpit
 
-Update the ".env" file with your database credentials, AI API keys, and other required configuration.
+3. Run the backend
 
-3. Start infrastructure services
+make backend-run              # Spring Boot on http://localhost:8080
 
-make dev-up
+4. Run the frontend
 
-This starts PostgreSQL, Redis, MinIO, and Mailpit.
+make frontend-install         # first time only
+make frontend-dev             # Vite dev server on http://localhost:5173
 
-4. Start the backend
-
-make backend-run
-
-Backend runs at:
-
-"http://localhost:8080"
-
-5. Start the frontend
-
-Install dependencies:
-
-make frontend-install
-
-Start the development server:
-
-make frontend-dev
-
-Frontend runs at:
-
-"http://localhost:5173"
-
-6. Application URLs
+5. Open the app
 
 Service| URL
 Frontend| http://localhost:5173
@@ -106,97 +84,58 @@ MinIO Console| http://localhost:9001
 📁 Project Structure
 
 finsight/
-│
-├── backend/
+├── backend/                  # Spring Boot application
 │   ├── src/
 │   │   ├── main/
-│   │   │   ├── java/             # Java source code
-│   │   │   └── resources/        # Configuration and migrations
-│   │   └── test/                 # Unit and integration tests
+│   │   │   ├── java/         # Java source code
+│   │   │   └── resources/    # application.yml, migrations
+│   │   └── test/             # Unit & integration tests
 │   └── pom.xml
-│
-├── frontend/
+├── frontend/                 # React + Vite application
 │   ├── src/
-│   │   ├── components/           # Reusable UI components
-│   │   ├── pages/                # Application pages
-│   │   ├── hooks/                # Custom React hooks
-│   │   ├── services/             # API client layer
-│   │   └── store/                # State management
+│   │   ├── components/       # Reusable UI components
+│   │   ├── pages/            # Route-level pages
+│   │   ├── hooks/            # Custom React hooks
+│   │   ├── services/         # API client layer
+│   │   └── store/            # State management
 │   ├── package.json
 │   └── vite.config.ts
-│
-├── .github/
-│   └── workflows/                # GitHub Actions CI pipelines
-│
-├── docker-compose.yml            # Infrastructure configuration
-├── Makefile                      # Developer task runner
-├── .env.example                  # Environment template
+├── .github/workflows/        # CI pipelines
+├── docker-compose.yml        # Local infrastructure
+├── Makefile                  # Developer task runner
+├── .env.example              # Environment template
 └── README.md
 
 ---
 
 🔄 Development Workflow
 
-Run all tests
-
+# Run all tests
 make test
 
-Build the project
-
+# Build everything for production
 make build
 
-Reset development environment
-
+# Full reset (wipes database & volumes)
 make dev-reset
 
-Note: This command wipes the database and associated volumes.
-
-Clean build artifacts
-
+# Clean build artifacts
 make clean
 
 ---
 
 🧪 Testing
 
-Backend Testing
-
-Backend tests use JUnit 5 and Testcontainers.
-
+# Backend tests (JUnit 5 + Testcontainers)
 make backend-test
 
-Frontend Testing
-
-Frontend tests use Vitest.
-
+# Frontend tests (Vitest)
 make frontend-test
 
-GitHub Actions automatically runs CI workflows on every push and pull request to the "main" branch.
+CI runs automatically on every push and pull request to "main" via GitHub Actions.
 
 ---
 
-🌐 Live Demo
-
-Coming Soon!
-
-The FinSight application will be publicly accessible once deployment is complete.
-
----
-
-🔐 Security
-
-FinSight is designed with security in mind:
-
-- JWT-based authentication.
-- AES-256 encryption at rest.
-- Role-based access control.
-- Environment-based secret management.
-- Secure API communication.
-
-Never commit your ".env" file, API keys, database passwords, or other sensitive credentials to GitHub.
-
----
-
-<div align="center">Built with ☕ and ❤️ by the FinSight team
-
+<div align="center">
+  <sub>Built with ☕ and ❤️ by me</sub>
 </div>
