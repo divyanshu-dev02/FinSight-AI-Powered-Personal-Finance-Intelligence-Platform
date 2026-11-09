@@ -1,30 +1,30 @@
-<div align="center">💰 FinSight
+💰 FinSight
 
 AI-Powered Personal Finance Intelligence Platform
 
-""Java" (https://img.shields.io/badge/Java-21-ED8B00?style=for-the-badge&logo=openjdk&logoColor=white)" (https://openjdk.org/)
-""Spring Boot" (https://img.shields.io/badge/Spring%20Boot-3.x-6DB33F?style=for-the-badge&logo=springboot&logoColor=white)" (https://spring.io/projects/spring-boot)
-""React" (https://img.shields.io/badge/React-18-61DAFB?style=for-the-badge&logo=react&logoColor=black)" (https://react.dev/)
-""TypeScript" (https://img.shields.io/badge/TypeScript-5-3178C6?style=for-the-badge&logo=typescript&logoColor=white)" (https://www.typescriptlang.org/)
-""PostgreSQL" (https://img.shields.io/badge/PostgreSQL-16-4169E1?style=for-the-badge&logo=postgresql&logoColor=white)" (https://www.postgresql.org/)
+"Java" (https://img.shields.io/badge/Java-21-orange?logo=openjdk)
+"Spring Boot" (https://img.shields.io/badge/Spring%20Boot-3.x-brightgreen?logo=springboot)
+"React" (https://img.shields.io/badge/React-18-blue?logo=react)
+"TypeScript" (https://img.shields.io/badge/TypeScript-5-blue?logo=typescript)
+"PostgreSQL" (https://img.shields.io/badge/PostgreSQL-16-blue?logo=postgresql)
 
-<br/>""Live Demo" (https://img.shields.io/badge/🌐_Live_Demo-Coming_Soon-orange?style=for-the-badge)" (#)
+""Live Demo" (https://img.shields.io/badge/Live%20Demo-Coming%20Soon-orange?style=for-the-badge)" (#)
 
-FinSight transforms your raw financial data into actionable intelligence. Import transactions, track spending, set budgets, and let AI surface the insights that matter — all from one beautiful dashboard.
+FinSight transforms raw financial data into actionable intelligence. Import transactions, track spending, set budgets, and let AI surface the insights that matter — all from one beautiful dashboard.
 
-</div>---
+---
 
 ✨ Features
 
 - 📊 Smart Dashboard — Real-time overview of net worth, cash flow, and spending trends.
-- 🏦 Multi-Account Management — Connect and manage bank accounts, credit cards, investments, and crypto wallets in one place.
-- 📥 Transaction Import — Upload CSV/OFX/QFX files or pull transactions via bank integrations.
-- 🏷️ Auto-Categorization — AI-powered transaction categorization that learns your habits.
-- 💡 AI Insights — Natural-language spending summaries, anomaly detection, and saving recommendations driven by LLMs (OpenAI, Anthropic, or Google AI).
-- 📈 Budgets & Goals — Set monthly budgets per category and track progress toward financial goals.
-- 🔔 Alerts & Notifications — Configurable alerts for unusual spending, bill reminders, and budget breaches.
-- 📑 Reports & Export — Generate detailed PDF/CSV reports for any date range.
-- 🔒 Security First — JWT authentication, AES-256 data encryption at rest, and role-based access control.
+- 🏦 Multi-Account Management — Manage bank accounts, credit cards, investments, and crypto wallets in one place.
+- 📥 Transaction Import — Upload CSV, OFX, and QFX files or retrieve transactions through bank integrations.
+- 🏷️ Auto-Categorization — AI-powered transaction categorization that learns your spending habits.
+- 💡 AI Insights — Natural-language spending summaries, anomaly detection, and saving recommendations powered by LLMs (OpenAI, Anthropic, or Google AI).
+- 📈 Budgets & Goals — Set monthly budgets by category and track financial goals.
+- 🔔 Alerts & Notifications — Receive alerts for unusual spending, bill reminders, and budget breaches.
+- 📑 Reports & Export — Generate detailed PDF and CSV reports for any date range.
+- 🔒 Security First — JWT authentication, AES-256 encryption at rest, and role-based access control.
 
 ---
 
@@ -35,8 +35,8 @@ Backend| Java 21, Spring Boot 3, Spring Security, Spring Data JPA
 Frontend| React 18, TypeScript 5, Vite, TailwindCSS
 Database| PostgreSQL 16
 Cache| Redis 7
-AI| OpenAI / Anthropic / Google AI (pluggable)
-Object Store| MinIO (S3-compatible)
+AI| OpenAI / Anthropic / Google AI
+Object Storage| MinIO (S3-compatible)
 Email| Mailpit (local) / SMTP (production)
 CI/CD| GitHub Actions
 
@@ -52,41 +52,48 @@ Make| Any| Task runner (optional)
 
 ---
 
-🚀 Quick Start
+🚀 Getting Started
 
-1. Clone & configure
+1. Clone the repository
 
 git clone https://github.com/your-org/finsight.git
 cd finsight
+
+2. Configure environment variables
+
 cp .env.example .env
 
-Edit the ".env" file and configure your environment variables and AI API keys.
+Update the ".env" file with your database credentials, AI API keys, and other required configuration.
 
-2. Start infrastructure
+3. Start infrastructure services
 
 make dev-up
 
 This starts PostgreSQL, Redis, MinIO, and Mailpit.
 
-3. Run the backend
+4. Start the backend
 
 make backend-run
 
-Spring Boot starts at:
+Backend runs at:
 
 "http://localhost:8080"
 
-4. Run the frontend
+5. Start the frontend
 
-Install frontend dependencies (first time only):
+Install dependencies:
 
 make frontend-install
 
-Start the Vite development server:
+Start the development server:
 
 make frontend-dev
 
-5. Open the application
+Frontend runs at:
+
+"http://localhost:5173"
+
+6. Application URLs
 
 Service| URL
 Frontend| http://localhost:5173
@@ -99,26 +106,31 @@ MinIO Console| http://localhost:9001
 📁 Project Structure
 
 finsight/
-├── backend/                  # Spring Boot application
+│
+├── backend/
 │   ├── src/
 │   │   ├── main/
-│   │   │   ├── java/         # Java source code
-│   │   │   └── resources/    # application.yml, migrations
-│   │   └── test/             # Unit & integration tests
+│   │   │   ├── java/             # Java source code
+│   │   │   └── resources/        # Configuration and migrations
+│   │   └── test/                 # Unit and integration tests
 │   └── pom.xml
-├── frontend/                 # React + Vite application
+│
+├── frontend/
 │   ├── src/
-│   │   ├── components/       # Reusable UI components
-│   │   ├── pages/            # Route-level pages
-│   │   ├── hooks/            # Custom React hooks
-│   │   ├── services/         # API client layer
-│   │   └── store/            # State management
+│   │   ├── components/           # Reusable UI components
+│   │   ├── pages/                # Application pages
+│   │   ├── hooks/                # Custom React hooks
+│   │   ├── services/             # API client layer
+│   │   └── store/                # State management
 │   ├── package.json
 │   └── vite.config.ts
-├── .github/workflows/        # CI pipelines
-├── docker-compose.yml        # Local infrastructure
-├── Makefile                  # Developer task runner
-├── .env.example              # Environment template
+│
+├── .github/
+│   └── workflows/                # GitHub Actions CI pipelines
+│
+├── docker-compose.yml            # Infrastructure configuration
+├── Makefile                      # Developer task runner
+├── .env.example                  # Environment template
 └── README.md
 
 ---
@@ -129,11 +141,11 @@ Run all tests
 
 make test
 
-Build everything for production
+Build the project
 
 make build
 
-Full reset
+Reset development environment
 
 make dev-reset
 
@@ -147,19 +159,41 @@ make clean
 
 🧪 Testing
 
-Backend Tests
+Backend Testing
 
 Backend tests use JUnit 5 and Testcontainers.
 
 make backend-test
 
-Frontend Tests
+Frontend Testing
 
 Frontend tests use Vitest.
 
 make frontend-test
 
-CI runs automatically on every push and pull request to the "main" branch via GitHub Actions.
+GitHub Actions automatically runs CI workflows on every push and pull request to the "main" branch.
+
+---
+
+🌐 Live Demo
+
+Coming Soon!
+
+The FinSight application will be publicly accessible once deployment is complete.
+
+---
+
+🔐 Security
+
+FinSight is designed with security in mind:
+
+- JWT-based authentication.
+- AES-256 encryption at rest.
+- Role-based access control.
+- Environment-based secret management.
+- Secure API communication.
+
+Never commit your ".env" file, API keys, database passwords, or other sensitive credentials to GitHub.
 
 ---
 
