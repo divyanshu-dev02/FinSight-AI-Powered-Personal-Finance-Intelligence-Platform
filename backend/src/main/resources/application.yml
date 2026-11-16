@@ -55,3 +55,7 @@ springdoc:
   swagger-ui:
     path: /swagger-ui.html
 
+# CORS — comma-separated origins; override with CORS_ALLOWED_ORIGINS env var in production
+cors:
+  allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173}
+
