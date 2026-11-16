@@ -17,20 +17,27 @@ public class CsvSanitizer {
             return null;
         }
 
-        String trimmed = value.trim();
-        if (trimmed.isEmpty()) {
-            return trimmed;
+        if (value.isEmpty()) {
+            return value;
         }
 
-        char firstChar = trimmed.charAt(0);
+        char firstChar = value.charAt(0);
         for (char dangerous : DANGEROUS_PREFIXES) {
             if (firstChar == dangerous) {
-                // Prepend a single quote to force spreadsheet programs to treat the cell as plain text
-                return "'" + trimmed;
+                return "'" + value;
+            }
+        }
+
+        String trimmed = value.trim();
+        if (!trimmed.isEmpty()) {
+            char trimmedFirstChar = trimmed.charAt(0);
+            for (char dangerous : DANGEROUS_PREFIXES) {
+                if (trimmedFirstChar == dangerous) {
+                    return "'" + trimmed;
+                }
             }
         }
 
         return trimmed;
     }
 }
-

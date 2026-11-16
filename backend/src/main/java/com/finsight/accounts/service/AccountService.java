@@ -5,9 +5,11 @@ import com.finsight.accounts.dto.CreateAccountRequest;
 import com.finsight.accounts.dto.UpdateAccountRequest;
 import com.finsight.accounts.entity.FinancialAccount;
 import com.finsight.accounts.repository.FinancialAccountRepository;
+import com.finsight.analytics.service.FinancialCalculationService;
 import com.finsight.common.exception.BusinessException;
 import com.finsight.common.exception.ResourceNotFoundException;
 import com.finsight.identity.entity.User;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -20,20 +22,27 @@ import java.util.UUID;
 public class AccountService {
 
     private final FinancialAccountRepository accountRepository;
+    private final FinancialCalculationService calculationService;
 
-    public AccountService(FinancialAccountRepository accountRepository) {
+    public AccountService(FinancialAccountRepository accountRepository,
+                          @Lazy FinancialCalculationService calculationService) {
         this.accountRepository = accountRepository;
+        this.calculationService = calculationService;
     }
 
-    public List<AccountResponse> getAccountsForUser(User user) {
-        return accountRepository.findByUserAndActiveTrueOrderByCreatedAtDesc(user).stream()
-                .map(acc -> AccountResponse.fromEntity(acc, acc.getOpeningBalance()))
+    public List<AccountResponse> getAccountsForUser(User user, boolean includeArchived) {
+        List<FinancialAccount> accounts = includeArchived
+                ? accountRepository.findByUserOrderByCreatedAtDesc(user)
+                : accountRepository.findByUserAndActiveTrueOrderByCreatedAtDesc(user);
+
+        return accounts.stream()
+                .map(acc -> AccountResponse.fromEntity(acc, calculationService.calculateAccountBalance(acc)))
                 .toList();
     }
 
     public AccountResponse getAccountById(UUID accountId, User user) {
         FinancialAccount account = findAccountOrThrow(accountId, user);
-        return AccountResponse.fromEntity(account, account.getOpeningBalance());
+        return AccountResponse.fromEntity(account, calculationService.calculateAccountBalance(account));
     }
 
     @Transactional
@@ -86,14 +95,22 @@ public class AccountService {
         }
 
         FinancialAccount updated = accountRepository.save(account);
-        return AccountResponse.fromEntity(updated, updated.getOpeningBalance());
+        return AccountResponse.fromEntity(updated, calculationService.calculateAccountBalance(updated));
     }
 
     @Transactional
     public void deleteAccount(UUID accountId, User user) {
         FinancialAccount account = findAccountOrThrow(accountId, user);
-        account.setActive(false); // Soft delete
+        account.setActive(false); // Soft delete / archive
         accountRepository.save(account);
+    }
+
+    @Transactional
+    public AccountResponse restoreAccount(UUID accountId, User user) {
+        FinancialAccount account = findAccountOrThrow(accountId, user);
+        account.setActive(true); // Unarchive / restore
+        FinancialAccount saved = accountRepository.save(account);
+        return AccountResponse.fromEntity(saved, calculationService.calculateAccountBalance(saved));
     }
 
     public FinancialAccount findAccountOrThrow(UUID accountId, User user) {
@@ -101,4 +118,3 @@ public class AccountService {
                 .orElseThrow(() -> new ResourceNotFoundException("Account", "id", accountId));
     }
 }
-

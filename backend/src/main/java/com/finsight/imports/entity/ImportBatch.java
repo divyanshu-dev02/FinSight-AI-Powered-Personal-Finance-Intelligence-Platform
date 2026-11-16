@@ -2,6 +2,8 @@ package com.finsight.imports.entity;
 
 import com.finsight.identity.entity.User;
 import jakarta.persistence.*;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 import java.time.Instant;
 import java.util.UUID;
 
@@ -39,6 +41,7 @@ public class ImportBatch {
     @Column(name = "duplicate_rows", nullable = false)
     private int duplicateRows = 0;
 
+    @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "error_summary", columnDefinition = "jsonb")
     private String errorSummary;
 

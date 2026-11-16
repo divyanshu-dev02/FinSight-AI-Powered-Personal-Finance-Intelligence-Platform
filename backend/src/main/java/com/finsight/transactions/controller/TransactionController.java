@@ -40,10 +40,11 @@ public class TransactionController {
     public ResponseEntity<ApiResponse<Page<TransactionResponse>>> getTransactions(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size,
+            @RequestParam(defaultValue = "false") boolean includeArchived,
             Authentication authentication) {
         User user = userService.findEntityByEmail(authentication.getName());
         Pageable pageable = PageRequest.of(page, size);
-        Page<TransactionResponse> transactions = transactionService.getTransactionsForUser(user, pageable);
+        Page<TransactionResponse> transactions = transactionService.getTransactionsForUser(user, includeArchived, pageable);
         return ResponseEntity.ok(ApiResponse.success(transactions));
     }
 

@@ -34,10 +34,12 @@ public class AccountController {
     }
 
     @GetMapping
-    @Operation(summary = "List all active accounts for authenticated user")
-    public ResponseEntity<ApiResponse<List<AccountResponse>>> getAccounts(Authentication authentication) {
+    @Operation(summary = "List accounts for authenticated user (optionally include archived/hidden accounts)")
+    public ResponseEntity<ApiResponse<List<AccountResponse>>> getAccounts(
+            @RequestParam(defaultValue = "false") boolean includeArchived,
+            Authentication authentication) {
         User user = userService.findEntityByEmail(authentication.getName());
-        List<AccountResponse> accounts = accountService.getAccountsForUser(user);
+        List<AccountResponse> accounts = accountService.getAccountsForUser(user, includeArchived);
         return ResponseEntity.ok(ApiResponse.success(accounts));
     }
 
@@ -73,12 +75,22 @@ public class AccountController {
     }
 
     @DeleteMapping("/{accountId}")
-    @Operation(summary = "Soft-delete an account")
+    @Operation(summary = "Archive/hide an account (preserves transaction history and calculations)")
     public ResponseEntity<ApiResponse<Void>> deleteAccount(
             @PathVariable UUID accountId,
             Authentication authentication) {
         User user = userService.findEntityByEmail(authentication.getName());
         accountService.deleteAccount(accountId, user);
         return ResponseEntity.ok(ApiResponse.success(null));
+    }
+
+    @PostMapping("/{accountId}/restore")
+    @Operation(summary = "Restore an archived account back to active status")
+    public ResponseEntity<ApiResponse<AccountResponse>> restoreAccount(
+            @PathVariable UUID accountId,
+            Authentication authentication) {
+        User user = userService.findEntityByEmail(authentication.getName());
+        AccountResponse response = accountService.restoreAccount(accountId, user);
+        return ResponseEntity.ok(ApiResponse.success(response));
     }
 }

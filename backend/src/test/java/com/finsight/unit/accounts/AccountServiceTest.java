@@ -6,6 +6,7 @@ import com.finsight.accounts.entity.AccountType;
 import com.finsight.accounts.entity.FinancialAccount;
 import com.finsight.accounts.repository.FinancialAccountRepository;
 import com.finsight.accounts.service.AccountService;
+import com.finsight.analytics.service.FinancialCalculationService;
 import com.finsight.common.exception.BusinessException;
 import com.finsight.identity.entity.User;
 import org.junit.jupiter.api.BeforeEach;
@@ -29,11 +30,14 @@ class AccountServiceTest {
     @Mock
     private FinancialAccountRepository accountRepository;
 
+    @Mock
+    private FinancialCalculationService calculationService;
+
     private AccountService accountService;
 
     @BeforeEach
     void setUp() {
-        accountService = new AccountService(accountRepository);
+        accountService = new AccountService(accountRepository, calculationService);
     }
 
     @Test
@@ -80,5 +84,20 @@ class AccountServiceTest {
 
         verify(accountRepository, never()).save(any());
     }
-}
 
+    @Test
+    @DisplayName("Soft-deleting account should set active to false without deleting data")
+    void shouldSoftDeleteAccount() {
+        User user = new User(UUID.randomUUID(), "user@finsight.local", "hash", "User");
+        UUID accountId = UUID.randomUUID();
+        FinancialAccount account = new FinancialAccount(user, "Old Account", AccountType.BANK_ACCOUNT, "INR", BigDecimal.ZERO, null);
+        account.setId(accountId);
+
+        when(accountRepository.findByIdAndUser(accountId, user)).thenReturn(java.util.Optional.of(account));
+
+        accountService.deleteAccount(accountId, user);
+
+        assertThat(account.isActive()).isFalse();
+        verify(accountRepository).save(account);
+    }
+}

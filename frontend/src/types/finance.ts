@@ -41,6 +41,7 @@ export interface Transaction {
   id: string;
   accountId: string;
   accountName: string;
+  accountActive?: boolean;
   categoryId?: string;
   categoryName?: string;
   categoryIcon?: string;

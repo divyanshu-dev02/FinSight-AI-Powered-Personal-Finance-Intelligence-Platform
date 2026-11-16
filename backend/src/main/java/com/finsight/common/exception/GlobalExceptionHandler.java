@@ -66,4 +66,3 @@ public class GlobalExceptionHandler {
                 .body(ApiResponse.error("INTERNAL_ERROR", "An unexpected error occurred. Please try again later."));
     }
 }
-

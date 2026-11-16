@@ -1,0 +1,9 @@
+Date,Description,Merchant,Debit,Credit,Category
+2026-11-01,Monthly Tech Salary,Google India Pvt Ltd,,75000.00,Salary
+2026-11-02,Apartment Rent Transfer,Landlord Estate,18000.00,,Rent & Housing
+2026-11-03,Supermarket Grocery Shopping,Nature Basket,3250.00,,Groceries
+2026-11-04,Monthly Electricity Bill,Adani Power,1450.00,,Utilities
+2026-11-05,Team Dinner Outing,Barbeque Nation,1120.00,,Dining Out
+2026-11-06,Freelance Web Development,Acme Corp,,12500.00,Freelance
+2026-11-07,Technical Architecture Book,Amazon India,850.00,,Education
+2026-11-08,Security Test Disarmed Injection,=1+2,Security Lab,250.00,,Other Expense

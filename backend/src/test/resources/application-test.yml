@@ -1,12 +1,12 @@
 spring:
   datasource:
-    url: jdbc:tc:postgresql:16-alpine:///finsight
+    url: jdbc:postgresql://localhost:5432/finsight
     username: finsight
-    password: finsight
-    driver-class-name: org.testcontainers.jdbc.ContainerDatabaseDriver
+    password: finsight_secure_pass_2026
+    driver-class-name: org.postgresql.Driver
   jpa:
     hibernate:
-      ddl-auto: validate
+      ddl-auto: none
   flyway:
     enabled: true
 

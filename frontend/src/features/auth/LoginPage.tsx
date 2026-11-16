@@ -21,9 +21,14 @@ export function LoginPage() {
   const {
     register,
     handleSubmit,
+    setValue,
     formState: { errors, isSubmitting },
   } = useForm<LoginFormData>({
     resolver: zodResolver(loginSchema),
+    defaultValues: {
+      email: 'divyanshu@finsight.local',
+      password: 'SecurePassword123!',
+    },
   });
 
   const onSubmit = async (data: LoginFormData) => {
@@ -51,6 +56,30 @@ export function LoginPage() {
             <p className="text-sm text-red-700">{errorMessage}</p>
           </div>
         )}
+
+        {/* Demo Credentials Quick-Fill Card */}
+        <div className="rounded-lg bg-blue-50 p-3.5 border border-blue-200 text-xs text-blue-900 space-y-1.5">
+          <div className="font-semibold flex items-center justify-between">
+            <span className="flex items-center gap-1.5">
+              <span>🔑</span>
+              <span>Default Demo Account</span>
+            </span>
+            <button
+              type="button"
+              onClick={() => {
+                setValue('email', 'divyanshu@finsight.local', { shouldValidate: true });
+                setValue('password', 'SecurePassword123!', { shouldValidate: true });
+              }}
+              className="font-bold text-blue-700 hover:text-blue-900 underline transition-colors cursor-pointer"
+            >
+              Auto-fill Credentials
+            </button>
+          </div>
+          <div className="font-mono text-[11px] text-blue-800 space-y-0.5">
+            <div>Email: <span className="font-semibold">divyanshu@finsight.local</span></div>
+            <div>Password: <span className="font-semibold">SecurePassword123!</span></div>
+          </div>
+        </div>
 
         <form className="mt-6 space-y-5" onSubmit={handleSubmit(onSubmit)}>
           <div>

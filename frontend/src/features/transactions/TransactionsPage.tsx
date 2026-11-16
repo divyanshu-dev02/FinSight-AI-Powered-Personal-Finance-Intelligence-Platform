@@ -7,6 +7,7 @@ import { api, ApiResponse } from '@/lib/api';
 import { Transaction, FinancialAccount, Category } from '@/types/finance';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
+import { CsvImportModal } from './CsvImportModal';
 
 const transactionSchema = z.object({
   accountId: z.string().min(1, 'Please select an account'),
@@ -31,14 +32,19 @@ interface PaginatedData<T> {
 export function TransactionsPage() {
   const queryClient = useQueryClient();
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isCsvModalOpen, setIsCsvModalOpen] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [page, setPage] = useState(0);
 
-  // 1. Fetch transactions
+  const [includeArchived, setIncludeArchived] = useState(false);
+
+  // 1. Fetch transactions (defaults to active accounts only)
   const { data: transactionsPage, isLoading } = useQuery({
-    queryKey: ['transactions', page],
+    queryKey: ['transactions', page, includeArchived],
     queryFn: async () => {
-      const res = await api.get<ApiResponse<PaginatedData<Transaction>>>(`/transactions?page=${page}&size=15`);
+      const res = await api.get<ApiResponse<PaginatedData<Transaction>>>(
+        `/transactions?page=${page}&size=15&includeArchived=${includeArchived}`
+      );
       return res.data.data;
     },
   });
@@ -126,16 +132,48 @@ export function TransactionsPage() {
             View, search, and track all your financial inflows and outflows.
           </p>
         </div>
-        <button
-          onClick={() => {
-            reset();
-            setErrorMessage(null);
-            setIsModalOpen(true);
-          }}
-          className="inline-flex items-center rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-700 transition-colors"
-        >
-          + Add Transaction
-        </button>
+        <div className="flex gap-3">
+          <button
+            onClick={() => setIsCsvModalOpen(true)}
+            className="inline-flex items-center rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 shadow-sm hover:bg-gray-50 transition-colors"
+          >
+            📥 Import CSV
+          </button>
+          <button
+            onClick={() => {
+              reset();
+              setErrorMessage(null);
+              setIsModalOpen(true);
+            }}
+            className="inline-flex items-center rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-700 transition-colors"
+          >
+            + Add Transaction
+          </button>
+        </div>
+      </div>
+
+      {/* Scope / Filter Bar */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between bg-white px-4 py-3 rounded-xl border border-gray-200 gap-3">
+        <label className="relative inline-flex items-center cursor-pointer select-none">
+          <input
+            type="checkbox"
+            checked={includeArchived}
+            onChange={(e) => {
+              setIncludeArchived(e.target.checked);
+              setPage(0);
+            }}
+            className="sr-only peer"
+          />
+          <div className="w-9 h-5 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-600"></div>
+          <span className="ml-3 text-sm font-medium text-gray-700">
+            Show transactions from archived accounts
+          </span>
+        </label>
+        <span className="text-xs text-gray-500">
+          {includeArchived
+            ? '📁 Showing all transactions (including archived accounts)'
+            : '✨ Showing active accounts only (archived accounts hidden)'}
+        </span>
       </div>
 
       {isLoading ? (
@@ -178,7 +216,16 @@ export function TransactionsPage() {
                       <span className="text-gray-400 text-xs">Uncategorized</span>
                     )}
                   </td>
-                  <td className="whitespace-nowrap px-6 py-4 text-gray-500">{tx.accountName}</td>
+                  <td className="whitespace-nowrap px-6 py-4 text-gray-500">
+                    <div className="flex items-center gap-1.5">
+                      <span>{tx.accountName}</span>
+                      {tx.accountActive === false && (
+                        <span className="inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-semibold text-gray-600">
+                          Archived
+                        </span>
+                      )}
+                    </div>
+                  </td>
                   <td
                     className={`whitespace-nowrap px-6 py-4 text-right font-semibold ${
                       tx.direction === 'CREDIT' ? 'text-emerald-600' : 'text-gray-900'
@@ -391,6 +438,12 @@ export function TransactionsPage() {
           </div>
         </div>
       )}
+
+      {/* CSV Import Wizard Modal */}
+      <CsvImportModal
+        isOpen={isCsvModalOpen}
+        onClose={() => setIsCsvModalOpen(false)}
+      />
     </div>
   );
 }

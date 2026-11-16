@@ -20,13 +20,15 @@ type AccountFormData = z.infer<typeof accountSchema>;
 
 export function AccountsPage() {
   const queryClient = useQueryClient();
+  const [activeTab, setActiveTab] = useState<'ACTIVE' | 'ARCHIVED'>('ACTIVE');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  const { data: accounts, isLoading } = useQuery({
-    queryKey: ['accounts'],
+  // Fetch all accounts including archived ones
+  const { data: allAccounts, isLoading } = useQuery({
+    queryKey: ['accounts', true],
     queryFn: async () => {
-      const res = await api.get<ApiResponse<FinancialAccount[]>>('/accounts');
+      const res = await api.get<ApiResponse<FinancialAccount[]>>('/accounts?includeArchived=true');
       return res.data.data;
     },
   });
@@ -48,13 +50,27 @@ export function AccountsPage() {
     },
   });
 
-  const deleteMutation = useMutation({
+  const archiveMutation = useMutation({
     mutationFn: async (id: string) => {
       await api.delete(`/accounts/${id}`);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['accounts'] });
       queryClient.invalidateQueries({ queryKey: ['dashboard-summary'] });
+      queryClient.invalidateQueries({ queryKey: ['recent-transactions'] });
+      queryClient.invalidateQueries({ queryKey: ['transactions'] });
+    },
+  });
+
+  const restoreMutation = useMutation({
+    mutationFn: async (id: string) => {
+      await api.post(`/accounts/${id}/restore`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['accounts'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-summary'] });
+      queryClient.invalidateQueries({ queryKey: ['recent-transactions'] });
+      queryClient.invalidateQueries({ queryKey: ['transactions'] });
     },
   });
 
@@ -88,13 +104,17 @@ export function AccountsPage() {
     }
   };
 
+  const activeAccounts = allAccounts?.filter((a) => a.active) || [];
+  const archivedAccounts = allAccounts?.filter((a) => !a.active) || [];
+  const currentList = activeTab === 'ACTIVE' ? activeAccounts : archivedAccounts;
+
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between border-b border-gray-200 pb-5">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between border-b border-gray-200 pb-5 gap-4">
         <div>
           <h2 className="text-2xl font-bold leading-7 text-gray-900 sm:text-3xl">Financial Accounts</h2>
           <p className="mt-1 text-sm text-gray-500">
-            Manage your bank accounts, credit cards, digital wallets, and cash reserves.
+            Manage your accounts. Deleting an account safely hides it while keeping all historical data and analytics intact.
           </p>
         </div>
         <button
@@ -103,9 +123,40 @@ export function AccountsPage() {
             setErrorMessage(null);
             setIsModalOpen(true);
           }}
-          className="inline-flex items-center rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-700 transition-colors"
+          className="inline-flex items-center justify-center rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-700 transition-colors"
         >
           + Add Account
+        </button>
+      </div>
+
+      {/* Tabs */}
+      <div className="flex border-b border-gray-200 gap-6">
+        <button
+          onClick={() => setActiveTab('ACTIVE')}
+          className={`pb-3 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 ${
+            activeTab === 'ACTIVE'
+              ? 'border-blue-600 text-blue-600'
+              : 'border-transparent text-gray-500 hover:text-gray-700'
+          }`}
+        >
+          Active Accounts
+          <span className="rounded-full bg-blue-100 text-blue-700 px-2 py-0.5 text-xs font-semibold">
+            {activeAccounts.length}
+          </span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('ARCHIVED')}
+          className={`pb-3 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 ${
+            activeTab === 'ARCHIVED'
+              ? 'border-blue-600 text-blue-600'
+              : 'border-transparent text-gray-500 hover:text-gray-700'
+          }`}
+        >
+          Archived & History
+          <span className="rounded-full bg-gray-100 text-gray-600 px-2 py-0.5 text-xs font-semibold">
+            {archivedAccounts.length}
+          </span>
         </button>
       </div>
 
@@ -113,22 +164,38 @@ export function AccountsPage() {
         <div className="flex justify-center p-12">
           <LoadingSpinner size="lg" />
         </div>
-      ) : accounts && accounts.length > 0 ? (
+      ) : currentList.length > 0 ? (
         <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
-          {accounts.map((acc) => (
+          {currentList.map((acc) => (
             <div
               key={acc.id}
-              className="relative overflow-hidden rounded-xl bg-white p-5 shadow-sm border border-gray-200 flex flex-col justify-between"
+              className={`relative overflow-hidden rounded-xl bg-white p-5 shadow-sm border flex flex-col justify-between transition-all ${
+                acc.active ? 'border-gray-200' : 'border-gray-200 bg-gray-50/70 opacity-90'
+              }`}
             >
               <div>
                 <div className="flex items-center justify-between">
-                  <span className="inline-flex items-center rounded-md bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700 ring-1 ring-inset ring-blue-700/10">
+                  <span
+                    className={`inline-flex items-center rounded-md px-2 py-1 text-xs font-medium ring-1 ring-inset ${
+                      acc.active
+                        ? 'bg-blue-50 text-blue-700 ring-blue-700/10'
+                        : 'bg-gray-100 text-gray-600 ring-gray-600/10'
+                    }`}
+                  >
                     {getAccountTypeLabel(acc.type)}
                   </span>
-                  {acc.institutionLabel && (
-                    <span className="text-xs text-gray-400">{acc.institutionLabel}</span>
-                  )}
+                  <div className="flex items-center gap-2">
+                    {!acc.active && (
+                      <span className="rounded bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-800">
+                        Archived
+                      </span>
+                    )}
+                    {acc.institutionLabel && (
+                      <span className="text-xs text-gray-400">{acc.institutionLabel}</span>
+                    )}
+                  </div>
                 </div>
+
                 <h3 className="mt-3 text-lg font-semibold text-gray-900">{acc.name}</h3>
                 <p className="mt-2 text-2xl font-bold text-gray-900">
                   {formatCurrency(acc.currentBalance, acc.currency)}
@@ -139,33 +206,60 @@ export function AccountsPage() {
               </div>
 
               <div className="mt-5 flex items-center justify-between border-t border-gray-100 pt-3">
-                <span className="text-xs text-gray-400">Added {formatDate(acc.createdAt)}</span>
-                <button
-                  onClick={() => {
-                    if (confirm(`Are you sure you want to delete ${acc.name}?`)) {
-                      deleteMutation.mutate(acc.id);
-                    }
-                  }}
-                  className="text-xs font-medium text-red-600 hover:text-red-700 transition-colors"
-                >
-                  Delete
-                </button>
+                <span className="text-xs text-gray-400">
+                  {acc.active ? `Added ${formatDate(acc.createdAt)}` : 'Historical Account'}
+                </span>
+
+                {acc.active ? (
+                  <button
+                    onClick={() => {
+                      if (
+                        confirm(
+                          `Archive "${acc.name}"?\n\nThis will hide the account from active entries, but all past transactions, income, and expense records will remain preserved in your financial history.`
+                        )
+                      ) {
+                        archiveMutation.mutate(acc.id);
+                      }
+                    }}
+                    className="text-xs font-medium text-amber-600 hover:text-amber-700 transition-colors"
+                  >
+                    Archive & Hide
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => restoreMutation.mutate(acc.id)}
+                    className="text-xs font-semibold text-blue-600 hover:text-blue-700 transition-colors"
+                  >
+                    Restore Account
+                  </button>
+                )}
               </div>
             </div>
           ))}
         </div>
       ) : (
         <div className="rounded-xl border-2 border-dashed border-gray-300 p-12 text-center">
-          <h3 className="text-sm font-semibold text-gray-900">No accounts yet</h3>
-          <p className="mt-1 text-sm text-gray-500">Get started by creating your first financial account.</p>
-          <div className="mt-6">
-            <button
-              onClick={() => setIsModalOpen(true)}
-              className="inline-flex items-center rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-700"
-            >
-              + Create Account
-            </button>
-          </div>
+          {activeTab === 'ACTIVE' ? (
+            <>
+              <h3 className="text-sm font-semibold text-gray-900">No active accounts</h3>
+              <p className="mt-1 text-sm text-gray-500">Get started by creating your primary financial account.</p>
+              <div className="mt-6">
+                <button
+                  onClick={() => setIsModalOpen(true)}
+                  className="inline-flex items-center rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-700"
+                >
+                  + Create Account
+                </button>
+              </div>
+            </>
+          ) : (
+            <>
+              <h3 className="text-sm font-semibold text-gray-900">No archived accounts</h3>
+              <p className="mt-1 text-sm text-gray-500">
+                When you archive an account, it will appear here with its historical records intact.
+              </p>
+            </>
+          )}
         </div>
       )}
 
@@ -278,4 +372,3 @@ export function AccountsPage() {
     </div>
   );
 }
-

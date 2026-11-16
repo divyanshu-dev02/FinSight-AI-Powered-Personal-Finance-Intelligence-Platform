@@ -35,9 +35,18 @@ public class TransactionService {
         this.categoryService = categoryService;
     }
 
+    public Page<TransactionResponse> getTransactionsForUser(User user, boolean includeArchived, Pageable pageable) {
+        if (includeArchived) {
+            return transactionRepository.findByUserOrderByTransactionDateDescCreatedAtDesc(user, pageable)
+                    .map(TransactionResponse::fromEntity);
+        } else {
+            return transactionRepository.findByUserAndAccountActiveTrueOrderByTransactionDateDescCreatedAtDesc(user, pageable)
+                    .map(TransactionResponse::fromEntity);
+        }
+    }
+
     public Page<TransactionResponse> getTransactionsForUser(User user, Pageable pageable) {
-        return transactionRepository.findByUserOrderByTransactionDateDescCreatedAtDesc(user, pageable)
-                .map(TransactionResponse::fromEntity);
+        return getTransactionsForUser(user, false, pageable);
     }
 
     public TransactionResponse getTransactionById(UUID id, User user) {
