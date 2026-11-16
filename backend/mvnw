@@ -49,9 +49,8 @@ if [ ! -r "$WRAPPER_JAR" ]; then
 fi
 
 if [ -r "$WRAPPER_JAR" ]; then
-  exec "$JAVACMD" -jar "$WRAPPER_JAR" "$@"
+  exec "$JAVACMD" "-Dmaven.multiModuleProjectDirectory=$BASE_DIR" -classpath "$WRAPPER_JAR" "$WRAPPER_LAUNCHER" "$@"
 else
   echo "Maven wrapper jar not found and could not be downloaded."
   exit 1
 fi
-
