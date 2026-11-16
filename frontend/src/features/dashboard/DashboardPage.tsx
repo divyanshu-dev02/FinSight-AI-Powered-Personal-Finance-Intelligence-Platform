@@ -1,4 +1,4 @@
-import { useAuth } from '@/features/auth/AuthContext';
+import { useAuth } from '@/features/auth/useAuth';
 import { useQuery } from '@tanstack/react-query';
 import { api, ApiResponse } from '@/lib/api';
 import { FinancialSummary, Transaction } from '@/types/finance';

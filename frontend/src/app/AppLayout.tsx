@@ -1,5 +1,5 @@
 import { Outlet, Link, useLocation } from 'react-router-dom';
-import { useAuth } from '@/features/auth/AuthContext';
+import { useAuth } from '@/features/auth/useAuth';
 
 const navItems = [
   { label: 'Dashboard', path: '/dashboard', icon: '📊' },
@@ -68,4 +68,3 @@ export function AppLayout() {
     </div>
   );
 }
-

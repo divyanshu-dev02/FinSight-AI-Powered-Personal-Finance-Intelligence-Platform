@@ -3,7 +3,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Link, useNavigate } from 'react-router-dom';
-import { useAuth } from './AuthContext';
+import { useAuth } from './useAuth';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
 
 const registerSchema = z
@@ -139,4 +139,3 @@ export function RegisterPage() {
     </div>
   );
 }
-
