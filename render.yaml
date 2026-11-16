@@ -47,9 +47,6 @@ services:
     dockerfilePath: ./frontend/Dockerfile
     dockerContext: ./frontend
     plan: free
-    envVars:
-      - key: VITE_API_BASE_URL
-        value: "https://finsight-backend.onrender.com"
 
 # ── 3. PostgreSQL 16 Database ──────────────────────────────────────────────
 databases:
