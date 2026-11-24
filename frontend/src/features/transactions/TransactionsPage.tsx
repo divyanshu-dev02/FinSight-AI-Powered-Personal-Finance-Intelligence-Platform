@@ -7,7 +7,7 @@ import { api, ApiResponse } from '@/lib/api';
 import { Transaction, FinancialAccount, Category } from '@/types/finance';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
-import { CsvImportModal } from './CsvImportModal';
+import { StatementImportModal } from './StatementImportModal';
 
 const transactionSchema = z.object({
   accountId: z.string().min(1, 'Please select an account'),
@@ -32,8 +32,9 @@ interface PaginatedData<T> {
 export function TransactionsPage() {
   const queryClient = useQueryClient();
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [isCsvModalOpen, setIsCsvModalOpen] = useState(false);
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [searchTerm, setSearchTerm] = useState('');
   const [page, setPage] = useState(0);
 
   const [includeArchived, setIncludeArchived] = useState(false);
@@ -49,7 +50,7 @@ export function TransactionsPage() {
     },
   });
 
-  // 2. Fetch accounts for the dropdown
+  // 2. Fetch accounts for dropdowns
   const { data: accounts } = useQuery({
     queryKey: ['accounts'],
     queryFn: async () => {
@@ -58,7 +59,7 @@ export function TransactionsPage() {
     },
   });
 
-  // 3. Fetch categories for the dropdown
+  // 3. Fetch categories for dropdowns
   const { data: categories } = useQuery({
     queryKey: ['categories'],
     queryFn: async () => {
@@ -121,23 +122,33 @@ export function TransactionsPage() {
     createMutation.mutate(data);
   };
 
-  const transactions = transactionsPage?.content || [];
+  const rawTransactions = transactionsPage?.content || [];
+  const transactions = searchTerm
+    ? rawTransactions.filter(
+        (t) =>
+          t.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          (t.merchant && t.merchant.toLowerCase().includes(searchTerm.toLowerCase())) ||
+          (t.categoryName && t.categoryName.toLowerCase().includes(searchTerm.toLowerCase()))
+      )
+    : rawTransactions;
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between border-b border-gray-200 pb-5">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between border-b border-gray-200 pb-5 gap-4">
         <div>
           <h2 className="text-2xl font-bold leading-7 text-gray-900 sm:text-3xl">Transactions</h2>
           <p className="mt-1 text-sm text-gray-500">
-            View, search, and track all your financial inflows and outflows.
+            View, search, filter, and track all your financial inflows, outflows, and statement imports.
           </p>
         </div>
-        <div className="flex gap-3">
+        <div className="flex items-center gap-3">
           <button
-            onClick={() => setIsCsvModalOpen(true)}
-            className="inline-flex items-center rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 shadow-sm hover:bg-gray-50 transition-colors"
+            onClick={() => setIsImportModalOpen(true)}
+            className="inline-flex items-center gap-2 rounded-xl border border-blue-200 bg-blue-50/70 px-4 py-2.5 text-sm font-semibold text-blue-700 shadow-xs hover:bg-blue-100 transition-all cursor-pointer"
           >
-            📥 Import CSV
+            <span>📥</span>
+            <span>Import Statement</span>
           </button>
           <button
             onClick={() => {
@@ -145,15 +156,37 @@ export function TransactionsPage() {
               setErrorMessage(null);
               setIsModalOpen(true);
             }}
-            className="inline-flex items-center rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-700 transition-colors"
+            className="inline-flex items-center gap-1.5 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-xs hover:bg-blue-700 transition-all cursor-pointer"
           >
-            + Add Transaction
+            <span>+</span>
+            <span>Add Transaction</span>
           </button>
         </div>
       </div>
 
       {/* Scope / Filter Bar */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between bg-white px-4 py-3 rounded-xl border border-gray-200 gap-3">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between bg-white px-5 py-3.5 rounded-xl border border-gray-200 gap-4 shadow-xs">
+        <div className="flex items-center gap-3 flex-1">
+          <div className="relative w-full max-w-xs">
+            <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-400">🔍</span>
+            <input
+              type="text"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder="Filter transactions..."
+              className="w-full pl-9 pr-3 py-1.5 text-sm rounded-lg border border-gray-300 focus:outline-none focus:border-blue-500"
+            />
+          </div>
+          {searchTerm && (
+            <button
+              onClick={() => setSearchTerm('')}
+              className="text-xs text-gray-500 hover:text-gray-800"
+            >
+              Clear
+            </button>
+          )}
+        </div>
+
         <label className="relative inline-flex items-center cursor-pointer select-none">
           <input
             type="checkbox"
@@ -165,15 +198,10 @@ export function TransactionsPage() {
             className="sr-only peer"
           />
           <div className="w-9 h-5 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-600"></div>
-          <span className="ml-3 text-sm font-medium text-gray-700">
-            Show transactions from archived accounts
+          <span className="ml-3 text-xs font-medium text-gray-600">
+            Include archived accounts
           </span>
         </label>
-        <span className="text-xs text-gray-500">
-          {includeArchived
-            ? '📁 Showing all transactions (including archived accounts)'
-            : '✨ Showing active accounts only (archived accounts hidden)'}
-        </span>
       </div>
 
       {isLoading ? (
@@ -181,31 +209,31 @@ export function TransactionsPage() {
           <LoadingSpinner size="lg" />
         </div>
       ) : transactions.length > 0 ? (
-        <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+        <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-xs">
           <table className="min-w-full divide-y divide-gray-200 text-sm">
             <thead className="bg-gray-50 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
               <tr>
-                <th className="px-6 py-3">Date</th>
-                <th className="px-6 py-3">Description</th>
-                <th className="px-6 py-3">Category</th>
-                <th className="px-6 py-3">Account</th>
-                <th className="px-6 py-3 text-right">Amount</th>
-                <th className="px-6 py-3 text-right">Actions</th>
+                <th className="px-6 py-3.5">Date</th>
+                <th className="px-6 py-3.5">Description</th>
+                <th className="px-6 py-3.5">Category</th>
+                <th className="px-6 py-3.5">Account</th>
+                <th className="px-6 py-3.5 text-right">Amount</th>
+                <th className="px-6 py-3.5 text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100 bg-white">
               {transactions.map((tx) => (
-                <tr key={tx.id} className="hover:bg-gray-50/50">
-                  <td className="whitespace-nowrap px-6 py-4 text-gray-600">
+                <tr key={tx.id} className="hover:bg-gray-50/60 transition-colors">
+                  <td className="whitespace-nowrap px-6 py-4 text-gray-600 text-xs font-medium">
                     {formatDate(tx.transactionDate)}
                   </td>
                   <td className="px-6 py-4">
-                    <div className="font-medium text-gray-900">{tx.description}</div>
-                    {tx.merchant && <div className="text-xs text-gray-400">{tx.merchant}</div>}
+                    <div className="font-semibold text-gray-900">{tx.description}</div>
+                    {tx.merchant && <div className="text-xs text-gray-400 mt-0.5">{tx.merchant}</div>}
                   </td>
                   <td className="whitespace-nowrap px-6 py-4 text-gray-500">
                     {tx.categoryName ? (
-                      <span className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium bg-gray-100 text-gray-800">
+                      <span className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium bg-gray-100 text-gray-800">
                         <span
                           className="h-2 w-2 rounded-full"
                           style={{ backgroundColor: tx.categoryColor || '#6B7280' }}
@@ -213,10 +241,10 @@ export function TransactionsPage() {
                         {tx.categoryName}
                       </span>
                     ) : (
-                      <span className="text-gray-400 text-xs">Uncategorized</span>
+                      <span className="text-gray-400 text-xs italic">Uncategorized</span>
                     )}
                   </td>
-                  <td className="whitespace-nowrap px-6 py-4 text-gray-500">
+                  <td className="whitespace-nowrap px-6 py-4 text-gray-600 text-xs font-medium">
                     <div className="flex items-center gap-1.5">
                       <span>{tx.accountName}</span>
                       {tx.accountActive === false && (
@@ -227,7 +255,7 @@ export function TransactionsPage() {
                     </div>
                   </td>
                   <td
-                    className={`whitespace-nowrap px-6 py-4 text-right font-semibold ${
+                    className={`whitespace-nowrap px-6 py-4 text-right font-bold ${
                       tx.direction === 'CREDIT' ? 'text-emerald-600' : 'text-gray-900'
                     }`}
                   >
@@ -240,7 +268,7 @@ export function TransactionsPage() {
                           deleteMutation.mutate(tx.id);
                         }
                       }}
-                      className="text-xs text-red-600 hover:text-red-800"
+                      className="text-xs font-medium text-red-600 hover:text-red-800 transition-colors"
                     >
                       Delete
                     </button>
@@ -251,7 +279,7 @@ export function TransactionsPage() {
           </table>
 
           {/* Pagination controls */}
-          <div className="flex items-center justify-between border-t border-gray-200 px-6 py-3">
+          <div className="flex items-center justify-between border-t border-gray-100 px-6 py-3.5 bg-gray-50/50">
             <span className="text-xs text-gray-500">
               Page {(transactionsPage?.number || 0) + 1} of {transactionsPage?.totalPages || 1}
             </span>
@@ -259,14 +287,14 @@ export function TransactionsPage() {
               <button
                 disabled={page === 0}
                 onClick={() => setPage((p) => Math.max(0, p - 1))}
-                className="rounded border border-gray-300 px-3 py-1 text-xs font-medium text-gray-700 disabled:opacity-40"
+                className="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-40 transition-colors"
               >
                 Previous
               </button>
               <button
                 disabled={!transactionsPage || page >= transactionsPage.totalPages - 1}
                 onClick={() => setPage((p) => p + 1)}
-                className="rounded border border-gray-300 px-3 py-1 text-xs font-medium text-gray-700 disabled:opacity-40"
+                className="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-40 transition-colors"
               >
                 Next
               </button>
@@ -274,13 +302,22 @@ export function TransactionsPage() {
           </div>
         </div>
       ) : (
-        <div className="rounded-xl border-2 border-dashed border-gray-300 p-12 text-center">
+        <div className="rounded-2xl border-2 border-dashed border-gray-300 p-12 text-center bg-white">
+          <div className="text-3xl mb-2">💸</div>
           <h3 className="text-sm font-semibold text-gray-900">No transactions recorded</h3>
-          <p className="mt-1 text-sm text-gray-500">Record your expenses or income to establish your cash flow.</p>
-          <div className="mt-6">
+          <p className="mt-1 text-sm text-gray-500">
+            Import a bank statement (PDF, Excel, CSV) or manually add your first transaction.
+          </p>
+          <div className="mt-6 flex justify-center gap-3">
+            <button
+              onClick={() => setIsImportModalOpen(true)}
+              className="inline-flex items-center gap-2 rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 shadow-xs hover:bg-gray-50"
+            >
+              📥 Import Statement
+            </button>
             <button
               onClick={() => setIsModalOpen(true)}
-              className="inline-flex items-center rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-700"
+              className="inline-flex items-center rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-xs hover:bg-blue-700"
             >
               + Record Transaction
             </button>
@@ -288,10 +325,10 @@ export function TransactionsPage() {
         </div>
       )}
 
-      {/* Modal Dialog */}
+      {/* Manual Transaction Modal Dialog */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl border border-gray-200">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs">
+          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl border border-gray-100">
             <div className="flex items-center justify-between border-b border-gray-100 pb-3">
               <h3 className="text-lg font-bold text-gray-900">Record Transaction</h3>
               <button
@@ -312,7 +349,7 @@ export function TransactionsPage() {
               <div>
                 <label className="block text-xs font-semibold text-gray-700">Direction</label>
                 <div className="mt-1 grid grid-cols-2 gap-2">
-                  <label className="flex items-center justify-center rounded-lg border p-2 text-sm cursor-pointer hover:bg-gray-50">
+                  <label className="flex items-center justify-center rounded-xl border p-2.5 text-sm font-medium cursor-pointer hover:bg-gray-50 transition-colors">
                     <input
                       type="radio"
                       value="DEBIT"
@@ -321,7 +358,7 @@ export function TransactionsPage() {
                     />
                     Expense (Debit)
                   </label>
-                  <label className="flex items-center justify-center rounded-lg border p-2 text-sm cursor-pointer hover:bg-gray-50">
+                  <label className="flex items-center justify-center rounded-xl border p-2.5 text-sm font-medium cursor-pointer hover:bg-gray-50 transition-colors">
                     <input
                       type="radio"
                       value="CREDIT"
@@ -337,7 +374,7 @@ export function TransactionsPage() {
                 <label className="block text-xs font-semibold text-gray-700">Financial Account</label>
                 <select
                   {...register('accountId')}
-                  className="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
+                  className="mt-1 block w-full rounded-xl border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
                 >
                   <option value="">Select an account</option>
                   {accounts?.map((acc) => (
@@ -359,7 +396,7 @@ export function TransactionsPage() {
                     step="0.01"
                     placeholder="0.00"
                     {...register('amount')}
-                    className="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
+                    className="mt-1 block w-full rounded-xl border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
                   />
                   {errors.amount && (
                     <p className="mt-1 text-xs text-red-600">{errors.amount.message}</p>
@@ -371,7 +408,7 @@ export function TransactionsPage() {
                   <input
                     type="date"
                     {...register('transactionDate')}
-                    className="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
+                    className="mt-1 block w-full rounded-xl border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
                   />
                   {errors.transactionDate && (
                     <p className="mt-1 text-xs text-red-600">{errors.transactionDate.message}</p>
@@ -383,7 +420,7 @@ export function TransactionsPage() {
                 <label className="block text-xs font-semibold text-gray-700">Category (Optional)</label>
                 <select
                   {...register('categoryId')}
-                  className="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
+                  className="mt-1 block w-full rounded-xl border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
                 >
                   <option value="">Uncategorized</option>
                   {categories?.map((cat) => (
@@ -400,7 +437,7 @@ export function TransactionsPage() {
                   type="text"
                   placeholder="e.g. Monthly Grocery Restock"
                   {...register('description')}
-                  className="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
+                  className="mt-1 block w-full rounded-xl border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
                 />
                 {errors.description && (
                   <p className="mt-1 text-xs text-red-600">{errors.description.message}</p>
@@ -413,7 +450,7 @@ export function TransactionsPage() {
                   type="text"
                   placeholder="e.g. Supermarket, Netflix, Employer"
                   {...register('merchant')}
-                  className="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
+                  className="mt-1 block w-full rounded-xl border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
                 />
               </div>
 
@@ -421,16 +458,16 @@ export function TransactionsPage() {
                 <button
                   type="button"
                   onClick={() => setIsModalOpen(false)}
-                  className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                  className="rounded-xl border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={isSubmitting || createMutation.isPending}
-                  className="inline-flex items-center rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-700 disabled:opacity-50"
+                  className="inline-flex items-center rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-xs hover:bg-blue-700 disabled:opacity-50"
                 >
-                  {createMutation.isPending ? <LoadingSpinner size="sm" className="mr-2" /> : null}
+                  {createMutation.isPending ? <LoadingSpinner size="sm" className="mr-2 border-white" /> : null}
                   Save Transaction
                 </button>
               </div>
@@ -439,12 +476,11 @@ export function TransactionsPage() {
         </div>
       )}
 
-      {/* CSV Import Wizard Modal */}
-      <CsvImportModal
-        isOpen={isCsvModalOpen}
-        onClose={() => setIsCsvModalOpen(false)}
+      {/* Universal Statement Import Modal */}
+      <StatementImportModal
+        isOpen={isImportModalOpen}
+        onClose={() => setIsImportModalOpen(false)}
       />
     </div>
   );
 }
-

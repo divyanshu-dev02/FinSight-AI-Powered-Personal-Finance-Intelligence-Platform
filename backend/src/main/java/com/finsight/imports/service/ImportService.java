@@ -22,7 +22,6 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.ByteArrayInputStream;
-import java.io.IOException;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -36,6 +35,7 @@ import java.util.concurrent.ConcurrentHashMap;
 public class ImportService {
 
     private final CsvParserService parserService;
+    private final StatementParserFactory parserFactory;
     private final ImportBatchRepository importBatchRepository;
     private final TransactionRepository transactionRepository;
     private final AccountService accountService;
@@ -45,53 +45,69 @@ public class ImportService {
     private final Map<String, CachedFile> fileCache = new ConcurrentHashMap<>();
 
     public ImportService(CsvParserService parserService,
+                         StatementParserFactory parserFactory,
                          ImportBatchRepository importBatchRepository,
                          TransactionRepository transactionRepository,
                          AccountService accountService,
                          CategoryRepository categoryRepository) {
         this.parserService = parserService;
+        this.parserFactory = parserFactory;
         this.importBatchRepository = importBatchRepository;
         this.transactionRepository = transactionRepository;
         this.accountService = accountService;
         this.categoryRepository = categoryRepository;
     }
 
-    public CsvPreviewResponse generatePreview(MultipartFile file, UUID accountId, User user) {
+    public CsvPreviewResponse generatePreview(MultipartFile file, UUID accountId, User user, String password) {
         if (file.isEmpty()) {
-            throw new BusinessException("EMPTY_FILE", "Uploaded CSV file is empty");
+            throw new BusinessException("EMPTY_FILE", "Uploaded statement file is empty");
         }
 
         try {
             byte[] bytes = file.getBytes();
             String fileHash = computeSha256(bytes);
-            String originalName = file.getOriginalFilename() != null ? file.getOriginalFilename() : "statement.csv";
+            String originalName = file.getOriginalFilename() != null ? file.getOriginalFilename() : "statement";
 
             // Verify account ownership
             accountService.findAccountOrThrow(accountId, user);
 
-            // Extract headers & detect mapping
-            List<String> headers = parserService.extractHeaders(new ByteArrayInputStream(bytes));
-            if (headers.isEmpty()) {
-                throw new BusinessException("INVALID_CSV", "No headers found in CSV file");
+            StatementParserFactory.FileFormat format = parserFactory.detectFormat(file);
+
+            List<String> headers;
+            CsvColumnMapping mapping;
+            List<CsvParserService.ParsedRow> parsedRows = new ArrayList<>();
+
+            if (format == StatementParserFactory.FileFormat.CSV) {
+                // Traditional CSV workflow
+                headers = parserService.extractHeaders(new ByteArrayInputStream(bytes));
+                if (headers.isEmpty()) {
+                    throw new BusinessException("INVALID_CSV", "No headers found in CSV file");
+                }
+                mapping = parserService.detectMapping(headers);
+
+                List<CSVRecord> records = parserService.parseRecords(new ByteArrayInputStream(bytes));
+                for (CSVRecord record : records) {
+                    parsedRows.add(parserService.parseRow(record, mapping));
+                }
+            } else {
+                // PDF or Excel workflow
+                StatementParser parser = parserFactory.getParser(format);
+                parsedRows = parser.parse(new ByteArrayInputStream(bytes), password);
+                headers = List.of("Date", "Description", "Amount", "Direction");
+                mapping = new CsvColumnMapping("Date", "Description", "Merchant", "Amount", null, null, "Category", "AUTO");
             }
 
-            CsvColumnMapping mapping = parserService.detectMapping(headers);
-
-            // Parse rows
-            List<CSVRecord> records = parserService.parseRecords(new ByteArrayInputStream(bytes));
             List<CsvPreviewRow> previewRows = new ArrayList<>();
-
             int validCount = 0;
             int duplicateCount = 0;
             int errorCount = 0;
 
-            for (int i = 0; i < records.size(); i++) {
-                CSVRecord record = records.get(i);
-                CsvParserService.ParsedRow parsed = parserService.parseRow(record, mapping);
+            for (int i = 0; i < parsedRows.size(); i++) {
+                CsvParserService.ParsedRow parsed = parsedRows.get(i);
 
                 if (!parsed.valid()) {
                     errorCount++;
-                    if (previewRows.size() < 20) {
+                    if (previewRows.size() < 25) {
                         previewRows.add(new CsvPreviewRow(
                                 i + 1, null, null, null, null, null, null, false, parsed.error()
                         ));
@@ -110,7 +126,7 @@ public class ImportService {
                     validCount++;
                 }
 
-                if (previewRows.size() < 20) {
+                if (previewRows.size() < 25) {
                     previewRows.add(new CsvPreviewRow(
                             i + 1,
                             parsed.date(),
@@ -126,7 +142,7 @@ public class ImportService {
             }
 
             String fileToken = UUID.randomUUID().toString();
-            fileCache.put(fileToken, new CachedFile(originalName, fileHash, bytes, Instant.now()));
+            fileCache.put(fileToken, new CachedFile(originalName, fileHash, bytes, format, password, Instant.now()));
 
             return new CsvPreviewResponse(
                     fileToken,
@@ -135,7 +151,7 @@ public class ImportService {
                     headers,
                     mapping,
                     previewRows,
-                    records.size(),
+                    parsedRows.size(),
                     validCount,
                     duplicateCount,
                     errorCount
@@ -144,7 +160,7 @@ public class ImportService {
         } catch (BusinessException be) {
             throw be;
         } catch (Exception e) {
-            throw new BusinessException("CSV_PARSE_FAILED", "Failed to parse CSV file: " + e.getMessage());
+            throw new BusinessException("STATEMENT_PARSE_FAILED", "Failed to parse statement: " + e.getMessage());
         }
     }
 
@@ -162,22 +178,34 @@ public class ImportService {
         batch = importBatchRepository.save(batch);
 
         try {
-            List<CSVRecord> records = parserService.parseRecords(new ByteArrayInputStream(cached.bytes()));
-            batch.setTotalRows(records.size());
+            List<CsvParserService.ParsedRow> rows;
 
-            CsvColumnMapping mapping = request.mapping();
-            if (mapping == null) {
-                List<String> headers = parserService.extractHeaders(new ByteArrayInputStream(cached.bytes()));
-                mapping = parserService.detectMapping(headers);
+            if (cached.format() == StatementParserFactory.FileFormat.CSV) {
+                List<CSVRecord> records = parserService.parseRecords(new ByteArrayInputStream(cached.bytes()));
+                CsvColumnMapping mapping = request.mapping();
+                if (mapping == null) {
+                    List<String> headers = parserService.extractHeaders(new ByteArrayInputStream(cached.bytes()));
+                    mapping = parserService.detectMapping(headers);
+                }
+                rows = new ArrayList<>();
+                for (CSVRecord record : records) {
+                    rows.add(parserService.parseRow(record, mapping));
+                }
+            } else {
+                StatementParser parser = parserFactory.getParser(cached.format());
+                rows = parser.parse(new ByteArrayInputStream(cached.bytes()), cached.password());
             }
+
+            batch.setTotalRows(rows.size());
+
+            TransactionSource txSource = parserFactory.toTransactionSource(cached.format());
 
             List<Transaction> toSave = new ArrayList<>();
             int successCount = 0;
             int duplicateCount = 0;
             int failedCount = 0;
 
-            for (CSVRecord record : records) {
-                CsvParserService.ParsedRow parsed = parserService.parseRow(record, mapping);
+            for (CsvParserService.ParsedRow parsed : rows) {
                 if (!parsed.valid()) {
                     failedCount++;
                     continue;
@@ -195,7 +223,6 @@ public class ImportService {
                     }
                 }
 
-                // Match Category if specified
                 Category category = null;
                 if (parsed.categoryName() != null && !parsed.categoryName().isBlank()) {
                     category = findOrCreateCategory(parsed.categoryName(), parsed.direction(), user);
@@ -211,7 +238,7 @@ public class ImportService {
                         parsed.description(),
                         parsed.merchant(),
                         parsed.date(),
-                        TransactionSource.CSV
+                        txSource
                 );
                 tx.setImportBatchId(batch.getId());
                 tx.setExternalFingerprint(fingerprint);
@@ -281,5 +308,6 @@ public class ImportService {
         }
     }
 
-    private record CachedFile(String fileName, String fileHash, byte[] bytes, Instant cachedAt) {}
+    private record CachedFile(String fileName, String fileHash, byte[] bytes,
+                              StatementParserFactory.FileFormat format, String password, Instant cachedAt) {}
 }

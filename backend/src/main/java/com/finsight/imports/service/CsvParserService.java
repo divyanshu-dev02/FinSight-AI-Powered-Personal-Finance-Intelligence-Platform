@@ -182,9 +182,19 @@ public class CsvParserService {
     }
 
     private String findBestMatch(List<String> headers, List<String> keywords) {
+        // Pass 1: exact match
         for (String keyword : keywords) {
             for (String header : headers) {
-                if (header.equalsIgnoreCase(keyword) || header.toLowerCase().contains(keyword)) {
+                if (header.equalsIgnoreCase(keyword)) {
+                    return header;
+                }
+            }
+        }
+        // Pass 2: substring match (skip short abbreviations like "cr" or "dr" to avoid false positives like "description")
+        for (String keyword : keywords) {
+            if (keyword.length() <= 2) continue;
+            for (String header : headers) {
+                if (header.toLowerCase().contains(keyword.toLowerCase())) {
                     return header;
                 }
             }

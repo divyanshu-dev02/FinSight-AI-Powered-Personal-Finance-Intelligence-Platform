@@ -22,7 +22,7 @@ import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/v1/transactions")
-@Tag(name = "CSV Ingestion", description = "CSV statement import and batch tracking")
+@Tag(name = "Statement Ingestion", description = "Universal bank statement import (CSV, PDF, Excel) and batch tracking")
 @SecurityRequirement(name = "bearerAuth")
 public class ImportController {
 
@@ -35,18 +35,19 @@ public class ImportController {
     }
 
     @PostMapping(value = "/import/preview", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    @Operation(summary = "Upload statement CSV and get parsed preview with auto-detected columns")
-    public ResponseEntity<ApiResponse<CsvPreviewResponse>> previewCsv(
+    @Operation(summary = "Upload statement (CSV, PDF, Excel) and get parsed preview with auto-detected columns")
+    public ResponseEntity<ApiResponse<CsvPreviewResponse>> previewStatement(
             @RequestParam("file") MultipartFile file,
             @RequestParam("accountId") UUID accountId,
+            @RequestParam(value = "password", required = false) String password,
             Authentication authentication) {
         User user = userService.findEntityByEmail(authentication.getName());
-        CsvPreviewResponse preview = importService.generatePreview(file, accountId, user);
+        CsvPreviewResponse preview = importService.generatePreview(file, accountId, user, password);
         return ResponseEntity.ok(ApiResponse.success(preview));
     }
 
     @PostMapping("/import/confirm")
-    @Operation(summary = "Confirm CSV import and batch-persist valid transactions")
+    @Operation(summary = "Confirm statement import and batch-persist valid transactions")
     public ResponseEntity<ApiResponse<ImportBatchResponse>> confirmImport(
             @Valid @RequestBody ConfirmImportRequest request,
             Authentication authentication) {
