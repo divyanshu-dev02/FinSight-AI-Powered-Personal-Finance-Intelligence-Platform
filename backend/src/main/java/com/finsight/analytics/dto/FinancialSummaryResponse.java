@@ -6,11 +6,19 @@ import java.util.UUID;
 
 public record FinancialSummaryResponse(
     BigDecimal totalNetWorth,
+    BigDecimal totalAssets,
+    BigDecimal totalLiabilities,
     BigDecimal totalIncome,
     BigDecimal totalExpense,
     BigDecimal netCashFlow,
     BigDecimal savingsRatePercentage,
     String currency,
+    String targetMonth,
+    BigDecimal previousMonthIncome,
+    BigDecimal previousMonthExpense,
+    BigDecimal incomeChangePercentage,
+    BigDecimal expenseChangePercentage,
+    BigDecimal savingsRateChange,
     List<CategorySpendingResponse> categoryBreakdown
 ) {
     public record CategorySpendingResponse(
@@ -22,4 +30,3 @@ public record FinancialSummaryResponse(
         BigDecimal percentageOfTotal
     ) {}
 }
-

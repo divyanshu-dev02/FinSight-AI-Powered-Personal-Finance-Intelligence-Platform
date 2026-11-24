@@ -65,6 +65,15 @@ public class Transaction {
     @Column(name = "notes", columnDefinition = "TEXT")
     private String notes;
 
+    @Column(name = "is_transfer", nullable = false)
+    private boolean isTransfer = false;
+
+    @Column(name = "transfer_account_id")
+    private UUID transferAccountId;
+
+    @Column(name = "transfer_transaction_id")
+    private UUID transferTransactionId;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 
@@ -223,6 +232,30 @@ public class Transaction {
 
     public void setNotes(String notes) {
         this.notes = notes;
+    }
+
+    public boolean isTransfer() {
+        return isTransfer;
+    }
+
+    public void setTransfer(boolean transfer) {
+        isTransfer = transfer;
+    }
+
+    public UUID getTransferAccountId() {
+        return transferAccountId;
+    }
+
+    public void setTransferAccountId(UUID transferAccountId) {
+        this.transferAccountId = transferAccountId;
+    }
+
+    public UUID getTransferTransactionId() {
+        return transferTransactionId;
+    }
+
+    public void setTransferTransactionId(UUID transferTransactionId) {
+        this.transferTransactionId = transferTransactionId;
     }
 
     public Instant getCreatedAt() {

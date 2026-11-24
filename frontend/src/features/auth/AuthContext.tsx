@@ -19,7 +19,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const initAuth = async () => {
-      const token = localStorage.getItem('accessToken');
+      if (typeof window === 'undefined' || !window.localStorage) {
+        setIsLoading(false);
+        return;
+      }
+      const token = window.localStorage.getItem('accessToken');
       if (!token) {
         setIsLoading(false);
         return;
@@ -30,12 +34,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (response.data.success && response.data.data) {
           setUser(response.data.data);
         } else {
-          localStorage.removeItem('accessToken');
-          localStorage.removeItem('refreshToken');
+          window.localStorage.removeItem('accessToken');
+          window.localStorage.removeItem('refreshToken');
         }
       } catch {
-        localStorage.removeItem('accessToken');
-        localStorage.removeItem('refreshToken');
+        window.localStorage.removeItem('accessToken');
+        window.localStorage.removeItem('refreshToken');
       } finally {
         setIsLoading(false);
       }

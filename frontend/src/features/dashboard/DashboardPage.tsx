@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react';
 import { useAuth } from '@/features/auth/AuthContext';
 import { useQuery } from '@tanstack/react-query';
 import { api, ApiResponse } from '@/lib/api';
@@ -8,11 +9,14 @@ import { LoadingSpinner } from '@/components/LoadingSpinner';
 
 export function DashboardPage() {
   const { user } = useAuth();
+  const currentMonthStr = new Date().toISOString().slice(0, 7);
+  const [selectedMonth, setSelectedMonth] = useState<string>(currentMonthStr);
+  const [isWakingUp, setIsWakingUp] = useState(false);
 
-  const { data: summary, isLoading: isSummaryLoading } = useQuery({
-    queryKey: ['dashboard-summary'],
+  const { data: summary, isLoading: isSummaryLoading, isFetching: isSummaryFetching } = useQuery({
+    queryKey: ['dashboard-summary', selectedMonth],
     queryFn: async () => {
-      const res = await api.get<ApiResponse<FinancialSummary>>('/dashboard/summary');
+      const res = await api.get<ApiResponse<FinancialSummary>>(`/dashboard/summary?month=${selectedMonth}`);
       return res.data.data;
     },
   });
@@ -25,10 +29,65 @@ export function DashboardPage() {
     },
   });
 
+  // Server wakeup detection for free tier cold starts (> 3 seconds loading)
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    if (isSummaryFetching) {
+      timer = setTimeout(() => {
+        setIsWakingUp(true);
+      }, 3000);
+    } else {
+      setIsWakingUp(false);
+    }
+    return () => {
+      if (timer) clearTimeout(timer);
+    };
+  }, [isSummaryFetching]);
+
   const currency = summary?.currency || user?.baseCurrency || 'INR';
+
+  const handlePrevMonth = () => {
+    const parts = selectedMonth.split('-').map(Number);
+    const y = parts[0] ?? new Date().getFullYear();
+    const m = parts[1] ?? new Date().getMonth() + 1;
+    const date = new Date(y, m - 2, 1);
+    setSelectedMonth(date.toISOString().slice(0, 7));
+  };
+
+  const handleNextMonth = () => {
+    const parts = selectedMonth.split('-').map(Number);
+    const y = parts[0] ?? new Date().getFullYear();
+    const m = parts[1] ?? new Date().getMonth() + 1;
+    const date = new Date(y, m, 1);
+    setSelectedMonth(date.toISOString().slice(0, 7));
+  };
+
+  const formatMonthTitle = (monthStr: string) => {
+    const parts = monthStr.split('-').map(Number);
+    const y = parts[0] ?? new Date().getFullYear();
+    const m = parts[1] ?? new Date().getMonth() + 1;
+    const date = new Date(y, m - 1, 1);
+    return new Intl.DateTimeFormat('en-IN', { month: 'long', year: 'numeric' }).format(date);
+  };
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
+      {/* Cold Start Waking Server Alert */}
+      {isWakingUp && (
+        <div className="rounded-2xl bg-amber-50 p-4 border border-amber-200 text-amber-900 flex items-center justify-between shadow-xs">
+          <div className="flex items-center gap-3">
+            <span className="text-xl animate-spin">⏳</span>
+            <div>
+              <p className="text-sm font-bold">Waking up cloud backend instance...</p>
+              <p className="text-xs text-amber-700">
+                Render free tier instances sleep after 15 min of inactivity. The initial wake-up takes ~30–45 seconds. Thank you for your patience!
+              </p>
+            </div>
+          </div>
+          <LoadingSpinner size="sm" />
+        </div>
+      )}
+
       {/* Welcome Banner & Quick Actions */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between border-b border-gray-200 pb-5 gap-4">
         <div>
@@ -36,7 +95,7 @@ export function DashboardPage() {
             Welcome back, {user?.displayName || 'User'} 👋
           </h2>
           <p className="mt-1 text-sm text-gray-500 font-medium">
-            Here is your Financial Digital Twin real-time intelligence summary.
+            Your Financial Digital Twin with real-time multi-currency intelligence.
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -57,9 +116,56 @@ export function DashboardPage() {
         </div>
       </div>
 
+      {/* Month Selection Bar & Comparison Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between bg-white px-5 py-3.5 rounded-2xl border border-gray-200 shadow-xs gap-4">
+        <div className="flex items-center gap-3">
+          <button
+            onClick={handlePrevMonth}
+            className="flex h-9 w-9 items-center justify-center rounded-xl border border-gray-200 hover:bg-gray-50 text-gray-600 font-bold transition-colors cursor-pointer"
+            title="Previous Month"
+          >
+            ←
+          </button>
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-bold text-gray-900 min-w-[140px] text-center">
+              {formatMonthTitle(selectedMonth)}
+            </span>
+            <input
+              type="month"
+              value={selectedMonth}
+              onChange={(e) => e.target.value && setSelectedMonth(e.target.value)}
+              className="text-xs rounded-lg border border-gray-200 px-2 py-1 text-gray-600 focus:outline-none focus:border-blue-500"
+            />
+          </div>
+          <button
+            onClick={handleNextMonth}
+            className="flex h-9 w-9 items-center justify-center rounded-xl border border-gray-200 hover:bg-gray-50 text-gray-600 font-bold transition-colors cursor-pointer"
+            title="Next Month"
+          >
+            →
+          </button>
+        </div>
+
+        <div className="flex items-center gap-2">
+          {selectedMonth !== currentMonthStr ? (
+            <button
+              onClick={() => setSelectedMonth(currentMonthStr)}
+              className="text-xs font-semibold text-blue-600 hover:text-blue-800 bg-blue-50 px-3 py-1.5 rounded-xl transition-colors cursor-pointer"
+            >
+              Jump to Current Month
+            </button>
+          ) : (
+            <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-700 bg-emerald-50 px-3 py-1 rounded-full">
+              <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse"></span>
+              Live Current Month
+            </span>
+          )}
+        </div>
+      </div>
+
       {/* Metric Cards Grid */}
       <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
-        {/* Net Worth */}
+        {/* Net Worth (Assets - Loans) */}
         <div className="relative overflow-hidden rounded-2xl bg-white p-5 shadow-xs border border-gray-200 hover:shadow-md transition-shadow">
           <div className="flex items-center justify-between">
             <dt className="text-xs font-bold uppercase tracking-wider text-gray-500">Total Net Worth</dt>
@@ -74,7 +180,10 @@ export function DashboardPage() {
               formatCurrency(summary?.totalNetWorth || 0, currency)
             )}
           </dd>
-          <p className="mt-1 text-xs text-gray-400 font-medium">Active accounts balance</p>
+          <div className="mt-2 flex items-center justify-between text-[11px] text-gray-500 pt-2 border-t border-gray-100">
+            <span>Assets: <strong className="text-emerald-600">+{formatCurrency(summary?.totalAssets || 0, currency)}</strong></span>
+            <span>Loans: <strong className="text-red-600">-{formatCurrency(summary?.totalLiabilities || 0, currency)}</strong></span>
+          </div>
         </div>
 
         {/* Monthly Inflow */}
@@ -92,7 +201,16 @@ export function DashboardPage() {
               `+ ${formatCurrency(summary?.totalIncome || 0, currency)}`
             )}
           </dd>
-          <p className="mt-1 text-xs text-gray-400 font-medium">Calendar month credits</p>
+          <div className="mt-2 flex items-center gap-1.5 text-xs pt-2 border-t border-gray-100">
+            {summary?.incomeChangePercentage != null ? (
+              <span className={`font-semibold ${summary.incomeChangePercentage >= 0 ? 'text-emerald-600' : 'text-amber-600'}`}>
+                {summary.incomeChangePercentage >= 0 ? '↑ +' : '↓ '}{summary.incomeChangePercentage}%
+              </span>
+            ) : (
+              <span className="text-gray-400">No prior data</span>
+            )}
+            <span className="text-gray-400 text-[11px]">vs last month</span>
+          </div>
         </div>
 
         {/* Monthly Outflow */}
@@ -110,7 +228,16 @@ export function DashboardPage() {
               `- ${formatCurrency(summary?.totalExpense || 0, currency)}`
             )}
           </dd>
-          <p className="mt-1 text-xs text-gray-400 font-medium">Calendar month debits</p>
+          <div className="mt-2 flex items-center gap-1.5 text-xs pt-2 border-t border-gray-100">
+            {summary?.expenseChangePercentage != null ? (
+              <span className={`font-semibold ${summary.expenseChangePercentage <= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                {summary.expenseChangePercentage <= 0 ? '↓ ' : '↑ +'}{summary.expenseChangePercentage}%
+              </span>
+            ) : (
+              <span className="text-gray-400">No prior data</span>
+            )}
+            <span className="text-gray-400 text-[11px]">vs last month</span>
+          </div>
         </div>
 
         {/* Savings Rate */}
@@ -128,7 +255,16 @@ export function DashboardPage() {
               `${summary?.savingsRatePercentage || 0}%`
             )}
           </dd>
-          <p className="mt-1 text-xs text-gray-400 font-medium">Net savings of total income</p>
+          <div className="mt-2 flex items-center gap-1.5 text-xs pt-2 border-t border-gray-100">
+            {summary?.savingsRateChange != null ? (
+              <span className={`font-semibold ${summary.savingsRateChange >= 0 ? 'text-emerald-600' : 'text-amber-600'}`}>
+                {summary.savingsRateChange >= 0 ? '↑ +' : '↓ '}{summary.savingsRateChange}%
+              </span>
+            ) : (
+              <span className="text-gray-400">—</span>
+            )}
+            <span className="text-gray-400 text-[11px]">rate change</span>
+          </div>
         </div>
       </div>
 
@@ -160,23 +296,30 @@ export function DashboardPage() {
                   <div className="flex items-center gap-3">
                     <span
                       className={`flex h-9 w-9 items-center justify-center rounded-xl text-sm font-bold ${
-                        tx.direction === 'CREDIT'
+                        tx.isTransfer
+                          ? 'bg-blue-50 text-blue-600'
+                          : tx.direction === 'CREDIT'
                           ? 'bg-emerald-50 text-emerald-600'
                           : 'bg-gray-100 text-gray-700'
                       }`}
                     >
-                      {tx.direction === 'CREDIT' ? '↓' : '↑'}
+                      {tx.isTransfer ? '⇄' : tx.direction === 'CREDIT' ? '↓' : '↑'}
                     </span>
                     <div>
                       <p className="text-sm font-semibold text-gray-900">{tx.description}</p>
                       <p className="text-xs text-gray-400">
                         {formatDate(tx.transactionDate)} · {tx.accountName}
+                        {tx.isTransfer && <span className="ml-1 text-blue-600 font-medium">(Transfer)</span>}
                       </p>
                     </div>
                   </div>
                   <span
                     className={`text-sm font-bold ${
-                      tx.direction === 'CREDIT' ? 'text-emerald-600' : 'text-gray-900'
+                      tx.isTransfer
+                        ? 'text-blue-600'
+                        : tx.direction === 'CREDIT'
+                        ? 'text-emerald-600'
+                        : 'text-gray-900'
                     }`}
                   >
                     {tx.direction === 'CREDIT' ? '+' : '-'} {formatCurrency(tx.amount, tx.currency)}
@@ -199,9 +342,9 @@ export function DashboardPage() {
           <div className="flex items-center justify-between border-b border-gray-100 pb-4">
             <div className="flex items-center gap-2">
               <span className="text-base">📊</span>
-              <h3 className="text-base font-bold text-gray-900">Monthly Spending Breakdown</h3>
+              <h3 className="text-base font-bold text-gray-900">Spending by Category</h3>
             </div>
-            <span className="text-xs text-gray-400 font-medium">By Category</span>
+            <span className="text-xs text-gray-500 font-semibold">{formatMonthTitle(selectedMonth)}</span>
           </div>
 
           {summary?.categoryBreakdown && summary.categoryBreakdown.length > 0 ? (
@@ -235,9 +378,9 @@ export function DashboardPage() {
             </ul>
           ) : (
             <div className="py-12 text-center text-sm text-gray-400 space-y-2">
-              <p>No category expenses recorded this month.</p>
+              <p>No category expenses recorded for {formatMonthTitle(selectedMonth)}.</p>
               <p className="text-xs text-gray-400">
-                Categorized expenses from statement imports will appear here automatically.
+                (Note: Internal transfers between your accounts are intentionally excluded from expenses).
               </p>
             </div>
           )}

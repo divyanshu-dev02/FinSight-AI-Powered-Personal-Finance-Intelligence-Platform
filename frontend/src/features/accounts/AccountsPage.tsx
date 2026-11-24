@@ -74,6 +74,22 @@ export function AccountsPage() {
     },
   });
 
+  const permanentDeleteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      await api.delete(`/accounts/${id}/permanent`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['accounts'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-summary'] });
+      queryClient.invalidateQueries({ queryKey: ['recent-transactions'] });
+      queryClient.invalidateQueries({ queryKey: ['transactions'] });
+    },
+    onError: (err: unknown) => {
+      const error = err as { response?: { data?: { error?: { message?: string } } } };
+      alert(error.response?.data?.error?.message || 'Failed to permanently delete account');
+    },
+  });
+
   const {
     register,
     handleSubmit,
@@ -99,7 +115,7 @@ export function AccountsPage() {
       case 'CREDIT_CARD': return { label: 'Credit Card', icon: '💳' };
       case 'DIGITAL_WALLET': return { label: 'Digital Wallet', icon: '📱' };
       case 'CASH': return { label: 'Cash', icon: '💵' };
-      case 'LOAN': return { label: 'Loan', icon: '📝' };
+      case 'LOAN': return { label: 'Loan / Liability', icon: '📝' };
       default: return { label: 'Other', icon: '📁' };
     }
   };
@@ -108,7 +124,16 @@ export function AccountsPage() {
   const archivedAccounts = allAccounts?.filter((a) => !a.active) || [];
   const currentList = activeTab === 'ACTIVE' ? activeAccounts : archivedAccounts;
 
-  const totalActiveBalance = activeAccounts.reduce((acc, curr) => acc + (curr.currentBalance || 0), 0);
+  // Calculate Asset vs Loan subtotals
+  const totalAssets = activeAccounts
+    .filter((a) => a.type !== 'LOAN')
+    .reduce((acc, curr) => acc + (curr.currentBalance || 0), 0);
+
+  const totalLoans = activeAccounts
+    .filter((a) => a.type === 'LOAN')
+    .reduce((acc, curr) => acc + (curr.currentBalance || 0), 0);
+
+  const totalNetBalance = totalAssets - totalLoans;
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
@@ -117,7 +142,7 @@ export function AccountsPage() {
         <div>
           <h2 className="text-2xl font-bold leading-7 text-gray-900 sm:text-3xl">Financial Accounts</h2>
           <p className="mt-1 text-sm text-gray-500">
-            Manage your bank accounts, credit cards, and digital wallets with dynamic derived balance computation.
+            Manage your accounts. Assets add to Net Worth; loans and liabilities are subtracted automatically.
           </p>
         </div>
         <button
@@ -134,20 +159,25 @@ export function AccountsPage() {
       </div>
 
       {/* Account Balance Summary Banner */}
-      <div className="rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-700 p-6 text-white shadow-md flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      <div className="rounded-2xl bg-gradient-to-r from-blue-600 via-indigo-600 to-slate-800 p-6 text-white shadow-md flex flex-col sm:flex-row sm:items-center sm:justify-between gap-6">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-wider text-blue-100">Total Accounts Balance</p>
+          <p className="text-xs font-semibold uppercase tracking-wider text-blue-200">Total Net Account Equity</p>
           <h3 className="text-3xl font-black tracking-tight mt-1">
-            {formatCurrency(totalActiveBalance, 'INR')}
+            {formatCurrency(totalNetBalance, 'INR')}
           </h3>
           <p className="text-xs text-blue-200 mt-1">
-            Sum of {activeAccounts.length} active financial account(s)
+            Net balance across {activeAccounts.length} active account(s)
           </p>
         </div>
-        <div className="flex gap-2">
-          <span className="inline-flex items-center rounded-xl bg-white/20 backdrop-blur-xs px-3 py-1.5 text-xs font-medium text-white">
-            Derived Balance Architecture
-          </span>
+        <div className="flex flex-wrap gap-4 text-xs">
+          <div className="bg-white/10 backdrop-blur-xs rounded-xl p-3 border border-white/10">
+            <p className="text-blue-200 text-[11px]">Liquid Assets</p>
+            <p className="text-base font-bold text-emerald-300">+{formatCurrency(totalAssets, 'INR')}</p>
+          </div>
+          <div className="bg-white/10 backdrop-blur-xs rounded-xl p-3 border border-white/10">
+            <p className="text-blue-200 text-[11px]">Outstanding Loans</p>
+            <p className="text-base font-bold text-red-300">-{formatCurrency(totalLoans, 'INR')}</p>
+          </div>
         </div>
       </div>
 
@@ -190,18 +220,25 @@ export function AccountsPage() {
         <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
           {currentList.map((acc) => {
             const typeInfo = getAccountTypeLabel(acc.type);
+            const isLoan = acc.type === 'LOAN';
             return (
               <div
                 key={acc.id}
                 className={`relative overflow-hidden rounded-2xl bg-white p-5 shadow-xs border flex flex-col justify-between transition-all hover:shadow-md ${
-                  acc.active ? 'border-gray-200' : 'border-gray-200 bg-gray-50/70 opacity-90'
+                  acc.active
+                    ? isLoan
+                      ? 'border-amber-200 bg-amber-50/20'
+                      : 'border-gray-200'
+                    : 'border-gray-200 bg-gray-50/70 opacity-90'
                 }`}
               >
                 <div>
                   <div className="flex items-center justify-between">
                     <span
                       className={`inline-flex items-center gap-1 rounded-lg px-2.5 py-1 text-xs font-medium ring-1 ring-inset ${
-                        acc.active
+                        isLoan
+                          ? 'bg-amber-50 text-amber-800 ring-amber-700/20'
+                          : acc.active
                           ? 'bg-blue-50 text-blue-700 ring-blue-700/10'
                           : 'bg-gray-100 text-gray-600 ring-gray-600/10'
                       }`}
@@ -222,8 +259,8 @@ export function AccountsPage() {
                   </div>
 
                   <h3 className="mt-3 text-lg font-bold text-gray-900">{acc.name}</h3>
-                  <p className="mt-2 text-2xl font-black text-gray-900">
-                    {formatCurrency(acc.currentBalance, acc.currency)}
+                  <p className={`mt-2 text-2xl font-black ${isLoan ? 'text-red-600' : 'text-gray-900'}`}>
+                    {isLoan ? '-' : ''}{formatCurrency(acc.currentBalance, acc.currency)}
                   </p>
                   <p className="text-xs text-gray-400 mt-1">
                     Opening: {formatCurrency(acc.openingBalance, acc.currency)}
@@ -251,12 +288,28 @@ export function AccountsPage() {
                       Archive & Hide
                     </button>
                   ) : (
-                    <button
-                      onClick={() => restoreMutation.mutate(acc.id)}
-                      className="text-xs font-bold text-blue-600 hover:text-blue-700 transition-colors cursor-pointer"
-                    >
-                      Restore Account
-                    </button>
+                    <div className="flex items-center gap-3">
+                      <button
+                        onClick={() => restoreMutation.mutate(acc.id)}
+                        className="text-xs font-bold text-blue-600 hover:text-blue-700 transition-colors cursor-pointer"
+                      >
+                        Restore
+                      </button>
+                      <button
+                        onClick={() => {
+                          if (
+                            confirm(
+                              `PERMANENTLY DELETE "${acc.name}"?\n\n⚠️ WARNING: This will permanently erase this account and ALL transactions recorded under it. This action CANNOT be undone.`
+                            )
+                          ) {
+                            permanentDeleteMutation.mutate(acc.id);
+                          }
+                        }}
+                        className="text-xs font-bold text-red-600 hover:text-red-800 transition-colors cursor-pointer"
+                      >
+                        Delete Permanently
+                      </button>
+                    </div>
                   )}
                 </div>
               </div>
@@ -315,7 +368,7 @@ export function AccountsPage() {
                 <label className="block text-xs font-semibold text-gray-700">Account Name</label>
                 <input
                   type="text"
-                  placeholder="e.g. HDFC Salary Account"
+                  placeholder="e.g. HDFC Salary Account, Car Loan, SBI Savings"
                   {...register('name')}
                   className="mt-1 block w-full rounded-xl border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
                 />
@@ -328,11 +381,11 @@ export function AccountsPage() {
                   {...register('type')}
                   className="mt-1 block w-full rounded-xl border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
                 >
-                  <option value="BANK_ACCOUNT">Bank Account</option>
-                  <option value="CREDIT_CARD">Credit Card</option>
+                  <option value="BANK_ACCOUNT">Bank Account (Asset)</option>
+                  <option value="CREDIT_CARD">Credit Card (Liability)</option>
                   <option value="DIGITAL_WALLET">Digital Wallet (UPI / Paytm)</option>
                   <option value="CASH">Cash in Hand</option>
-                  <option value="LOAN">Loan / Liability</option>
+                  <option value="LOAN">Loan (Liability - Subtracted from Net Worth)</option>
                   <option value="OTHER">Other</option>
                 </select>
               </div>

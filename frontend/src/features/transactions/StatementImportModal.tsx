@@ -55,6 +55,7 @@ export function StatementImportModal({ isOpen, onClose }: StatementImportModalPr
   const [showPassword, setShowPassword] = useState(false);
   const [previewData, setPreviewData] = useState<CsvPreviewResponse | null>(null);
   const [skipDuplicates, setSkipDuplicates] = useState(true);
+  const [previewFilter, setPreviewFilter] = useState<'ALL' | 'DUPLICATES' | 'UNCATEGORIZED' | 'ERRORS'>('ALL');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   // Fetch accounts for account selector
@@ -290,111 +291,237 @@ export function StatementImportModal({ isOpen, onClose }: StatementImportModalPr
         )}
 
         {/* STEP 2: PREVIEW & CONFIRM */}
-        {step === 'PREVIEW' && previewData && (
-          <div className="mt-5 space-y-4">
-            {/* Metric badges */}
-            <div className="grid grid-cols-4 gap-3 text-center">
-              <div className="rounded-xl bg-gray-50 p-3 border border-gray-200">
-                <p className="text-xs text-gray-500 font-medium">Total Rows</p>
-                <p className="text-xl font-extrabold text-gray-900 mt-0.5">{previewData.totalRows}</p>
-              </div>
-              <div className="rounded-xl bg-emerald-50 p-3 border border-emerald-200">
-                <p className="text-xs text-emerald-700 font-medium">Valid</p>
-                <p className="text-xl font-extrabold text-emerald-700 mt-0.5">{previewData.validRows}</p>
-              </div>
-              <div className="rounded-xl bg-amber-50 p-3 border border-amber-200">
-                <p className="text-xs text-amber-700 font-medium">Duplicates</p>
-                <p className="text-xl font-extrabold text-amber-700 mt-0.5">{previewData.duplicateRows}</p>
-              </div>
-              <div className="rounded-xl bg-red-50 p-3 border border-red-200">
-                <p className="text-xs text-red-700 font-medium">Errors</p>
-                <p className="text-xl font-extrabold text-red-700 mt-0.5">{previewData.errorRows}</p>
-              </div>
-            </div>
+        {step === 'PREVIEW' && previewData && (() => {
+          const isUncategorized = (row: CsvPreviewRow) =>
+            !row.categoryName || row.categoryName.trim().toLowerCase() === 'uncategorized';
+          const uncategorizedRows = previewData.previewRows.filter((r) => !r.validationError && isUncategorized(r));
+          const uncategorizedCount = uncategorizedRows.length;
 
-            {/* Duplicate policy checkbox */}
-            <label className="flex items-center gap-2 text-xs font-medium text-gray-700 cursor-pointer pt-1">
-              <input
-                type="checkbox"
-                checked={skipDuplicates}
-                onChange={(e) => setSkipDuplicates(e.target.checked)}
-                className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 h-4 w-4"
-              />
-              Skip {previewData.duplicateRows} duplicate transaction(s) using cryptographic fingerprinting
-            </label>
+          const filteredRows = previewData.previewRows.filter((row) => {
+            if (previewFilter === 'DUPLICATES') return row.duplicate;
+            if (previewFilter === 'UNCATEGORIZED') return !row.validationError && isUncategorized(row);
+            if (previewFilter === 'ERRORS') return !!row.validationError;
+            return true;
+          });
 
-            {/* Sample Table */}
-            <div className="max-h-64 overflow-y-auto rounded-xl border border-gray-200">
-              <table className="min-w-full divide-y divide-gray-200 text-xs">
-                <thead className="bg-gray-50 text-gray-600 uppercase tracking-wider text-left font-semibold sticky top-0">
-                  <tr>
-                    <th className="px-3.5 py-2.5">#</th>
-                    <th className="px-3.5 py-2.5">Date</th>
-                    <th className="px-3.5 py-2.5">Description</th>
-                    <th className="px-3.5 py-2.5 text-right">Amount</th>
-                    <th className="px-3.5 py-2.5 text-center">Status</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100 bg-white">
-                  {previewData.previewRows.map((row) => (
-                    <tr key={row.rowNumber} className="hover:bg-gray-50/70 transition-colors">
-                      <td className="px-3.5 py-2.5 text-gray-400 font-mono">{row.rowNumber}</td>
-                      <td className="px-3.5 py-2.5 text-gray-700 whitespace-nowrap">
-                        {row.date ? formatDate(row.date) : '—'}
-                      </td>
-                      <td className="px-3.5 py-2.5 text-gray-900 font-medium truncate max-w-xs">
-                        {row.description || (row.validationError ? (
-                          <span className="text-red-600 font-normal">{row.validationError}</span>
-                        ) : '—')}
-                      </td>
-                      <td className="px-3.5 py-2.5 font-bold text-right whitespace-nowrap">
-                        {row.amount ? (
-                          <span className={row.direction === 'CREDIT' ? 'text-emerald-600' : 'text-gray-900'}>
-                            {row.direction === 'CREDIT' ? '+' : '-'} {formatCurrency(row.amount)}
-                          </span>
-                        ) : '—'}
-                      </td>
-                      <td className="px-3.5 py-2.5 text-center whitespace-nowrap">
-                        {row.validationError ? (
-                          <span className="rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-bold text-red-700">
-                            Error
-                          </span>
-                        ) : row.duplicate ? (
-                          <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-800">
-                            Duplicate
-                          </span>
-                        ) : (
-                          <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-800">
-                            Valid
-                          </span>
-                        )}
-                      </td>
+          return (
+            <div className="mt-5 space-y-4">
+              {/* Metric badges / Filter tabs */}
+              <div className="grid grid-cols-4 gap-2.5 text-center">
+                <button
+                  type="button"
+                  onClick={() => setPreviewFilter('ALL')}
+                  className={`rounded-xl p-3 border text-center transition-all cursor-pointer ${
+                    previewFilter === 'ALL'
+                      ? 'bg-blue-50 border-blue-300 ring-2 ring-blue-200'
+                      : 'bg-gray-50 border-gray-200 hover:bg-gray-100'
+                  }`}
+                >
+                  <p className="text-xs text-gray-500 font-medium">All Rows</p>
+                  <p className="text-xl font-extrabold text-gray-900 mt-0.5">{previewData.totalRows}</p>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPreviewFilter('DUPLICATES')}
+                  className={`rounded-xl p-3 border text-center transition-all cursor-pointer ${
+                    previewFilter === 'DUPLICATES'
+                      ? 'bg-amber-100 border-amber-400 ring-2 ring-amber-300'
+                      : previewData.duplicateRows > 0
+                      ? 'bg-amber-50 border-amber-200 hover:bg-amber-100/60'
+                      : 'bg-gray-50 border-gray-200 opacity-60'
+                  }`}
+                >
+                  <p className="text-xs text-amber-700 font-medium">Duplicates</p>
+                  <p className="text-xl font-extrabold text-amber-800 mt-0.5">{previewData.duplicateRows}</p>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPreviewFilter('UNCATEGORIZED')}
+                  className={`rounded-xl p-3 border text-center transition-all cursor-pointer ${
+                    previewFilter === 'UNCATEGORIZED'
+                      ? 'bg-purple-100 border-purple-400 ring-2 ring-purple-300'
+                      : uncategorizedCount > 0
+                      ? 'bg-purple-50 border-purple-200 hover:bg-purple-100/60'
+                      : 'bg-gray-50 border-gray-200 opacity-60'
+                  }`}
+                >
+                  <p className="text-xs text-purple-700 font-medium">Uncategorized</p>
+                  <p className="text-xl font-extrabold text-purple-800 mt-0.5">{uncategorizedCount}</p>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPreviewFilter('ERRORS')}
+                  className={`rounded-xl p-3 border text-center transition-all cursor-pointer ${
+                    previewFilter === 'ERRORS'
+                      ? 'bg-red-100 border-red-400 ring-2 ring-red-300'
+                      : previewData.errorRows > 0
+                      ? 'bg-red-50 border-red-200 hover:bg-red-100/60'
+                      : 'bg-gray-50 border-gray-200 opacity-60'
+                  }`}
+                >
+                  <p className="text-xs text-red-700 font-medium">Errors</p>
+                  <p className="text-xl font-extrabold text-red-800 mt-0.5">{previewData.errorRows}</p>
+                </button>
+              </div>
+
+              {/* Duplicate Warning Review Banner */}
+              {previewData.duplicateRows > 0 && (
+                <div className="rounded-xl bg-amber-50 border border-amber-200 p-3.5 flex items-start gap-3">
+                  <span className="text-lg leading-none">⚠️</span>
+                  <div className="text-xs text-amber-900 space-y-1">
+                    <p className="font-bold">
+                      {previewData.duplicateRows} Potential Duplicate{previewData.duplicateRows > 1 ? 's' : ''} Detected
+                    </p>
+                    <p className="text-amber-800">
+                      These transactions match existing records based on date, amount, and cryptographic fingerprint.
+                      {skipDuplicates ? ' They will be safely skipped during import.' : ' Will be imported as duplicates.'}
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* Uncategorized Informational Banner */}
+              {uncategorizedCount > 0 && (
+                <div className="rounded-xl bg-purple-50 border border-purple-200 p-3.5 flex items-start gap-3">
+                  <span className="text-lg leading-none">🏷️</span>
+                  <div className="text-xs text-purple-900 space-y-1">
+                    <p className="font-bold">
+                      {uncategorizedCount} Uncategorized Transaction{uncategorizedCount > 1 ? 's' : ''}
+                    </p>
+                    <p className="text-purple-800">
+                      No matching category was found. They will be imported with an "Uncategorized" label so you can review and categorize them later.
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* Duplicate policy checkbox */}
+              <div className="flex items-center justify-between pt-1">
+                <label className="flex items-center gap-2 text-xs font-medium text-gray-700 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={skipDuplicates}
+                    onChange={(e) => setSkipDuplicates(e.target.checked)}
+                    className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 h-4 w-4"
+                  />
+                  Skip {previewData.duplicateRows} duplicate transaction(s) using cryptographic fingerprinting
+                </label>
+                {previewFilter !== 'ALL' && (
+                  <button
+                    type="button"
+                    onClick={() => setPreviewFilter('ALL')}
+                    className="text-xs text-blue-600 hover:text-blue-700 font-medium"
+                  >
+                    Reset filter (showing {filteredRows.length} of {previewData.totalRows})
+                  </button>
+                )}
+              </div>
+
+              {/* Sample Table */}
+              <div className="max-h-64 overflow-y-auto rounded-xl border border-gray-200">
+                <table className="min-w-full divide-y divide-gray-200 text-xs">
+                  <thead className="bg-gray-50 text-gray-600 uppercase tracking-wider text-left font-semibold sticky top-0">
+                    <tr>
+                      <th className="px-3.5 py-2.5">#</th>
+                      <th className="px-3.5 py-2.5">Date</th>
+                      <th className="px-3.5 py-2.5">Description</th>
+                      <th className="px-3.5 py-2.5">Category</th>
+                      <th className="px-3.5 py-2.5 text-right">Amount</th>
+                      <th className="px-3.5 py-2.5 text-center">Status</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100 bg-white">
+                    {filteredRows.length === 0 ? (
+                      <tr>
+                        <td colSpan={6} className="text-center py-8 text-gray-400">
+                          No transactions found matching this filter.
+                        </td>
+                      </tr>
+                    ) : (
+                      filteredRows.map((row) => {
+                        const uncategorized = isUncategorized(row);
+                        return (
+                          <tr
+                            key={row.rowNumber}
+                            className={`hover:bg-gray-50/70 transition-colors ${
+                              row.duplicate ? 'bg-amber-50/30' : row.validationError ? 'bg-red-50/30' : ''
+                            }`}
+                          >
+                            <td className="px-3.5 py-2.5 text-gray-400 font-mono">{row.rowNumber}</td>
+                            <td className="px-3.5 py-2.5 text-gray-700 whitespace-nowrap">
+                              {row.date ? formatDate(row.date) : '—'}
+                            </td>
+                            <td className="px-3.5 py-2.5 text-gray-900 font-medium truncate max-w-xs">
+                              {row.description || (row.validationError ? (
+                                <span className="text-red-600 font-normal">{row.validationError}</span>
+                              ) : '—')}
+                            </td>
+                            <td className="px-3.5 py-2.5 whitespace-nowrap">
+                              {uncategorized ? (
+                                <span className="inline-flex items-center gap-1 text-[11px] font-medium text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-md">
+                                  <span>🏷️</span> Uncategorized
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center text-[11px] font-medium text-gray-700 bg-gray-100 px-2 py-0.5 rounded-md">
+                                  {row.categoryName}
+                                </span>
+                              )}
+                            </td>
+                            <td className="px-3.5 py-2.5 font-bold text-right whitespace-nowrap">
+                              {row.amount ? (
+                                <span className={row.direction === 'CREDIT' ? 'text-emerald-600' : 'text-gray-900'}>
+                                  {row.direction === 'CREDIT' ? '+' : '-'} {formatCurrency(row.amount)}
+                                </span>
+                              ) : '—'}
+                            </td>
+                            <td className="px-3.5 py-2.5 text-center whitespace-nowrap">
+                              {row.validationError ? (
+                                <span className="rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-bold text-red-700">
+                                  Error
+                                </span>
+                              ) : row.duplicate ? (
+                                <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-800">
+                                  Duplicate
+                                </span>
+                              ) : uncategorized ? (
+                                <span className="rounded-full bg-purple-100 px-2 py-0.5 text-[10px] font-bold text-purple-800">
+                                  Uncategorized
+                                </span>
+                              ) : (
+                                <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-800">
+                                  Valid
+                                </span>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
+              </div>
 
-            <div className="flex justify-between gap-3 pt-4 border-t border-gray-100">
-              <button
-                type="button"
-                onClick={() => setStep('UPLOAD')}
-                className="rounded-xl border border-gray-300 px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
-              >
-                Back
-              </button>
-              <button
-                type="button"
-                disabled={confirmMutation.isPending || previewData.validRows === 0}
-                onClick={() => confirmMutation.mutate()}
-                className="inline-flex items-center rounded-xl bg-blue-600 px-6 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-blue-700 disabled:opacity-50 transition-all cursor-pointer"
-              >
-                {confirmMutation.isPending ? <LoadingSpinner size="sm" className="mr-2 border-white" /> : null}
-                Confirm & Import ({previewData.validRows} transactions)
-              </button>
+              <div className="flex justify-between gap-3 pt-4 border-t border-gray-100">
+                <button
+                  type="button"
+                  onClick={() => setStep('UPLOAD')}
+                  className="rounded-xl border border-gray-300 px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+                >
+                  Back
+                </button>
+                <button
+                  type="button"
+                  disabled={confirmMutation.isPending || previewData.validRows === 0}
+                  onClick={() => confirmMutation.mutate()}
+                  className="inline-flex items-center rounded-xl bg-blue-600 px-6 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-blue-700 disabled:opacity-50 transition-all cursor-pointer"
+                >
+                  {confirmMutation.isPending ? <LoadingSpinner size="sm" className="mr-2 border-white" /> : null}
+                  Confirm & Import ({previewData.validRows} transactions)
+                </button>
+              </div>
             </div>
-          </div>
-        )}
+          );
+        })()}
 
         {/* STEP 3: SUCCESS */}
         {step === 'SUCCESS' && (

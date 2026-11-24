@@ -84,6 +84,16 @@ public class AccountController {
         return ResponseEntity.ok(ApiResponse.success(null));
     }
 
+    @DeleteMapping("/{accountId}/permanent")
+    @Operation(summary = "Permanently delete an account and all its transactions")
+    public ResponseEntity<ApiResponse<Void>> permanentlyDeleteAccount(
+            @PathVariable UUID accountId,
+            Authentication authentication) {
+        User user = userService.findEntityByEmail(authentication.getName());
+        accountService.hardDeleteAccount(accountId, user);
+        return ResponseEntity.ok(ApiResponse.success(null));
+    }
+
     @PostMapping("/{accountId}/restore")
     @Operation(summary = "Restore an archived account back to active status")
     public ResponseEntity<ApiResponse<AccountResponse>> restoreAccount(

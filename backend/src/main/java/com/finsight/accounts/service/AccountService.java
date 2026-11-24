@@ -106,6 +106,12 @@ public class AccountService {
     }
 
     @Transactional
+    public void hardDeleteAccount(UUID accountId, User user) {
+        FinancialAccount account = findAccountOrThrow(accountId, user);
+        accountRepository.delete(account); // Permanent removal (cascades transactions)
+    }
+
+    @Transactional
     public AccountResponse restoreAccount(UUID accountId, User user) {
         FinancialAccount account = findAccountOrThrow(accountId, user);
         account.setActive(true); // Unarchive / restore

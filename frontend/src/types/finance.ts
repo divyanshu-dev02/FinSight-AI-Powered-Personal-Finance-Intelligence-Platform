@@ -35,7 +35,7 @@ export interface Category {
 }
 
 export type TransactionDirection = 'DEBIT' | 'CREDIT';
-export type TransactionSource = 'MANUAL' | 'CSV' | 'SYSTEM';
+export type TransactionSource = 'MANUAL' | 'CSV' | 'PDF' | 'EXCEL' | 'SYSTEM';
 
 export interface Transaction {
   id: string;
@@ -55,6 +55,9 @@ export interface Transaction {
   postedDate?: string;
   source: TransactionSource;
   notes?: string;
+  isTransfer?: boolean;
+  transferAccountId?: string;
+  transferTransactionId?: string;
   createdAt: string;
 }
 
@@ -69,11 +72,18 @@ export interface CategorySpending {
 
 export interface FinancialSummary {
   totalNetWorth: number;
+  totalAssets: number;
+  totalLiabilities: number;
   totalIncome: number;
   totalExpense: number;
   netCashFlow: number;
   savingsRatePercentage: number;
   currency: string;
+  targetMonth?: string;
+  previousMonthIncome?: number;
+  previousMonthExpense?: number;
+  incomeChangePercentage?: number | null;
+  expenseChangePercentage?: number | null;
+  savingsRateChange?: number | null;
   categoryBreakdown: CategorySpending[];
 }
-

@@ -24,6 +24,8 @@ public interface TransactionRepository extends JpaRepository<Transaction, UUID> 
 
     Page<Transaction> findByUserOrderByTransactionDateDescCreatedAtDesc(User user, Pageable pageable);
 
+    List<Transaction> findByUserOrderByTransactionDateDescCreatedAtDesc(User user);
+
     Optional<Transaction> findByIdAndUser(UUID id, User user);
 
     @Query("SELECT COALESCE(SUM(t.amount), 0) FROM Transaction t " +
@@ -35,7 +37,8 @@ public interface TransactionRepository extends JpaRepository<Transaction, UUID> 
     @Query("SELECT COALESCE(SUM(t.amount), 0) FROM Transaction t " +
            "WHERE t.user = :user AND t.direction = :direction " +
            "AND t.transactionDate BETWEEN :startDate AND :endDate " +
-           "AND t.account.active = true")
+           "AND t.account.active = true " +
+           "AND t.isTransfer = false")
     BigDecimal sumAmountByUserAndDirectionAndDateRange(
             @Param("user") User user,
             @Param("direction") TransactionDirection direction,
@@ -47,6 +50,7 @@ public interface TransactionRepository extends JpaRepository<Transaction, UUID> 
            "WHERE t.user = :user AND t.direction = :direction " +
            "AND t.transactionDate BETWEEN :startDate AND :endDate " +
            "AND t.account.active = true " +
+           "AND t.isTransfer = false " +
            "GROUP BY t.category.id, t.category.name, t.category.icon, t.category.color " +
            "ORDER BY SUM(t.amount) DESC")
     List<Object[]> sumAmountGroupedByCategory(

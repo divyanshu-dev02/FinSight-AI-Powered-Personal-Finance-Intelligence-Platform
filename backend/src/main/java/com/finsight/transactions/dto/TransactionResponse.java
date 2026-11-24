@@ -27,6 +27,9 @@ public record TransactionResponse(
     LocalDate postedDate,
     TransactionSource source,
     String notes,
+    boolean isTransfer,
+    UUID transferAccountId,
+    UUID transferTransactionId,
     Instant createdAt
 ) {
     public static TransactionResponse fromEntity(Transaction t) {
@@ -48,8 +51,10 @@ public record TransactionResponse(
             t.getPostedDate(),
             t.getSource(),
             t.getNotes(),
+            t.isTransfer(),
+            t.getTransferAccountId(),
+            t.getTransferTransactionId(),
             t.getCreatedAt()
         );
     }
 }
-

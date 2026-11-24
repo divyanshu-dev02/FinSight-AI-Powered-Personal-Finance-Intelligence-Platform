@@ -4,6 +4,7 @@ import com.finsight.accounts.entity.AccountType;
 import com.finsight.accounts.entity.FinancialAccount;
 import com.finsight.accounts.repository.FinancialAccountRepository;
 import com.finsight.analytics.dto.FinancialSummaryResponse;
+import com.finsight.analytics.service.CurrencyConversionService;
 import com.finsight.analytics.service.FinancialCalculationService;
 import com.finsight.identity.entity.User;
 import com.finsight.transactions.entity.TransactionDirection;
@@ -37,10 +38,12 @@ class FinancialCalculationServiceTest {
     private TransactionRepository transactionRepository;
 
     private FinancialCalculationService calculationService;
+    private CurrencyConversionService currencyConverter;
 
     @BeforeEach
     void setUp() {
-        calculationService = new FinancialCalculationService(accountRepository, transactionRepository);
+        currencyConverter = new CurrencyConversionService();
+        calculationService = new FinancialCalculationService(accountRepository, transactionRepository, currencyConverter);
     }
 
     @Test
@@ -59,6 +62,38 @@ class FinancialCalculationServiceTest {
 
         // 5000 + 25000 - 8200.50 = 21799.5000
         assertThat(balance).isEqualByComparingTo("21799.5000");
+    }
+
+    @Test
+    @DisplayName("Net worth should subtract loans and convert multi-currency accounts")
+    void shouldSubtractLoansAndConvertCurrenciesInNetWorth() {
+        User user = new User(UUID.randomUUID(), "test@finsight.local", "hash", "Test User");
+        user.setBaseCurrency("INR");
+
+        // Checking in INR: balance 100,000
+        FinancialAccount checking = new FinancialAccount(user, "Checking", AccountType.BANK_ACCOUNT, "INR",
+                new BigDecimal("100000.0000"), "HDFC");
+        // USD Savings: balance 1,000 USD -> 1000 * 86.50 = 86,500 INR
+        FinancialAccount usdSavings = new FinancialAccount(user, "US Stocks", AccountType.BANK_ACCOUNT, "USD",
+                new BigDecimal("1000.0000"), "Wise");
+        // Home Loan: balance 50,000 INR (Liability)
+        FinancialAccount loan = new FinancialAccount(user, "Car Loan", AccountType.LOAN, "INR",
+                new BigDecimal("50000.0000"), "SBI");
+
+        when(accountRepository.findByUserAndActiveTrueOrderByCreatedAtDesc(user))
+                .thenReturn(List.of(checking, usdSavings, loan));
+
+        when(transactionRepository.sumAmountByAccountAndDirection(any(), any()))
+                .thenReturn(BigDecimal.ZERO);
+
+        FinancialSummaryResponse summary = calculationService.calculateMonthlySummary(user, YearMonth.of(2026, 11));
+
+        // Assets = 100,000 (checking) + 86,500 (usdSavings) = 186,500
+        assertThat(summary.totalAssets()).isEqualByComparingTo("186500.0000");
+        // Liabilities = 50,000 (loan)
+        assertThat(summary.totalLiabilities()).isEqualByComparingTo("50000.0000");
+        // Net Worth = 186,500 - 50,000 = 136,500
+        assertThat(summary.totalNetWorth()).isEqualByComparingTo("136500.0000");
     }
 
     @Test

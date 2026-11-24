@@ -4,6 +4,7 @@ import com.finsight.common.dto.ApiResponse;
 import com.finsight.identity.entity.User;
 import com.finsight.identity.service.UserService;
 import com.finsight.transactions.dto.CreateTransactionRequest;
+import com.finsight.transactions.dto.CreateTransferRequest;
 import com.finsight.transactions.dto.TransactionResponse;
 import com.finsight.transactions.dto.UpdateTransactionRequest;
 import com.finsight.transactions.service.TransactionService;
@@ -14,11 +15,14 @@ import jakarta.validation.Valid;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDate;
 import java.util.UUID;
 
 @RestController
@@ -56,6 +60,29 @@ public class TransactionController {
         User user = userService.findEntityByEmail(authentication.getName());
         TransactionResponse response = transactionService.createTransaction(request, user);
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success(response));
+    }
+
+    @PostMapping("/transfer")
+    @Operation(summary = "Create a first-class internal transfer between two accounts")
+    public ResponseEntity<ApiResponse<TransactionResponse>> createTransfer(
+            @Valid @RequestBody CreateTransferRequest request,
+            Authentication authentication) {
+        User user = userService.findEntityByEmail(authentication.getName());
+        TransactionResponse response = transactionService.createTransfer(request, user);
+        return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success(response));
+    }
+
+    @GetMapping("/export")
+    @Operation(summary = "Export all transactions as a downloadable CSV file")
+    public ResponseEntity<byte[]> exportTransactions(Authentication authentication) {
+        User user = userService.findEntityByEmail(authentication.getName());
+        byte[] csvData = transactionService.exportTransactionsCsv(user);
+        String filename = "finsight-transactions-" + LocalDate.now() + ".csv";
+
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + filename + "\"")
+                .contentType(MediaType.parseMediaType("text/csv; charset=UTF-8"))
+                .body(csvData);
     }
 
     @GetMapping("/{transactionId}")

@@ -4,12 +4,15 @@ import com.finsight.accounts.entity.FinancialAccount;
 import com.finsight.accounts.service.AccountService;
 import com.finsight.categories.entity.Category;
 import com.finsight.categories.service.CategoryService;
+import com.finsight.common.exception.BusinessException;
 import com.finsight.common.exception.ResourceNotFoundException;
 import com.finsight.identity.entity.User;
 import com.finsight.transactions.dto.CreateTransactionRequest;
+import com.finsight.transactions.dto.CreateTransferRequest;
 import com.finsight.transactions.dto.TransactionResponse;
 import com.finsight.transactions.dto.UpdateTransactionRequest;
 import com.finsight.transactions.entity.Transaction;
+import com.finsight.transactions.entity.TransactionDirection;
 import com.finsight.transactions.entity.TransactionSource;
 import com.finsight.transactions.repository.TransactionRepository;
 import org.springframework.data.domain.Page;
@@ -17,6 +20,8 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.nio.charset.StandardCharsets;
+import java.util.List;
 import java.util.UUID;
 
 @Service
@@ -137,6 +142,95 @@ public class TransactionService {
     public void deleteTransaction(UUID id, User user) {
         Transaction transaction = findTransactionOrThrow(id, user);
         transactionRepository.delete(transaction);
+    }
+
+    @Transactional
+    public TransactionResponse createTransfer(CreateTransferRequest request, User user) {
+        if (request.sourceAccountId().equals(request.destinationAccountId())) {
+            throw new BusinessException("INVALID_TRANSFER", "Source and destination accounts must be different");
+        }
+
+        FinancialAccount sourceAccount = accountService.findAccountOrThrow(request.sourceAccountId(), user);
+        FinancialAccount destinationAccount = accountService.findAccountOrThrow(request.destinationAccountId(), user);
+
+        String description = (request.description() != null && !request.description().isBlank())
+                ? request.description().trim()
+                : "Transfer to " + destinationAccount.getName();
+
+        // 1. Debit from source account
+        Transaction debitTx = new Transaction(
+                user,
+                sourceAccount,
+                null,
+                request.amount(),
+                sourceAccount.getCurrency(),
+                TransactionDirection.DEBIT,
+                description,
+                null,
+                request.transactionDate(),
+                TransactionSource.MANUAL
+        );
+        debitTx.setNotes(request.notes());
+        debitTx.setTransfer(true);
+        debitTx.setTransferAccountId(destinationAccount.getId());
+        Transaction savedDebit = transactionRepository.save(debitTx);
+
+        // 2. Credit to destination account
+        String destDesc = (request.description() != null && !request.description().isBlank())
+                ? request.description().trim()
+                : "Transfer from " + sourceAccount.getName();
+
+        Transaction creditTx = new Transaction(
+                user,
+                destinationAccount,
+                null,
+                request.amount(),
+                destinationAccount.getCurrency(),
+                TransactionDirection.CREDIT,
+                destDesc,
+                null,
+                request.transactionDate(),
+                TransactionSource.MANUAL
+        );
+        creditTx.setNotes(request.notes());
+        creditTx.setTransfer(true);
+        creditTx.setTransferAccountId(sourceAccount.getId());
+        creditTx.setTransferTransactionId(savedDebit.getId());
+        Transaction savedCredit = transactionRepository.save(creditTx);
+
+        // Link back
+        savedDebit.setTransferTransactionId(savedCredit.getId());
+        transactionRepository.save(savedDebit);
+
+        return TransactionResponse.fromEntity(savedDebit);
+    }
+
+    public byte[] exportTransactionsCsv(User user) {
+        List<Transaction> transactions = transactionRepository.findByUserOrderByTransactionDateDescCreatedAtDesc(user);
+        StringBuilder sb = new StringBuilder();
+        sb.append("ID,Date,Account,Category,Amount,Currency,Direction,Description,Merchant,IsTransfer,Source,Notes\n");
+
+        for (Transaction tx : transactions) {
+            sb.append('"').append(tx.getId()).append("\",");
+            sb.append('"').append(tx.getTransactionDate()).append("\",");
+            sb.append('"').append(escapeCsv(tx.getAccount().getName())).append("\",");
+            sb.append('"').append(tx.getCategory() != null ? escapeCsv(tx.getCategory().getName()) : "Uncategorized").append("\",");
+            sb.append(tx.getAmount().toPlainString()).append(',');
+            sb.append('"').append(tx.getCurrency()).append("\",");
+            sb.append('"').append(tx.getDirection()).append("\",");
+            sb.append('"').append(escapeCsv(tx.getDescription())).append("\",");
+            sb.append('"').append(tx.getMerchant() != null ? escapeCsv(tx.getMerchant()) : "").append("\",");
+            sb.append(tx.isTransfer()).append(',');
+            sb.append('"').append(tx.getSource()).append("\",");
+            sb.append('"').append(tx.getNotes() != null ? escapeCsv(tx.getNotes()) : "").append("\"\n");
+        }
+
+        return sb.toString().getBytes(StandardCharsets.UTF_8);
+    }
+
+    private String escapeCsv(String val) {
+        if (val == null) return "";
+        return val.replace("\"", "\"\"");
     }
 
     public Transaction findTransactionOrThrow(UUID id, User user) {

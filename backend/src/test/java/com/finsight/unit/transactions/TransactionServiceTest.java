@@ -6,6 +6,7 @@ import com.finsight.accounts.service.AccountService;
 import com.finsight.categories.service.CategoryService;
 import com.finsight.identity.entity.User;
 import com.finsight.transactions.dto.CreateTransactionRequest;
+import com.finsight.transactions.dto.CreateTransferRequest;
 import com.finsight.transactions.dto.TransactionResponse;
 import com.finsight.transactions.entity.Transaction;
 import com.finsight.transactions.entity.TransactionDirection;
@@ -117,5 +118,50 @@ class TransactionServiceTest {
         assertThat(response.amount()).isEqualByComparingTo("500.0000");
         assertThat(response.description()).isEqualTo("Lunch at cafe");
         assertThat(response.accountActive()).isTrue();
+    }
+
+    @Test
+    @DisplayName("Should create linked transfer transactions between two accounts")
+    void shouldCreateTransferSuccessfully() {
+        FinancialAccount savings = new FinancialAccount(testUser, "Savings Account", AccountType.BANK_ACCOUNT, "INR",
+                new BigDecimal("50000.0000"), "HDFC");
+
+        CreateTransferRequest request = new CreateTransferRequest(
+                activeAccount.getId(),
+                savings.getId(),
+                new BigDecimal("2000.0000"),
+                LocalDate.of(2026, 11, 20),
+                "Monthly Savings Transfer",
+                "Internal"
+        );
+
+        when(accountService.findAccountOrThrow(activeAccount.getId(), testUser)).thenReturn(activeAccount);
+        when(accountService.findAccountOrThrow(savings.getId(), testUser)).thenReturn(savings);
+        when(transactionRepository.save(any(Transaction.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        TransactionResponse response = transactionService.createTransfer(request, testUser);
+
+        assertThat(response).isNotNull();
+        assertThat(response.isTransfer()).isTrue();
+        assertThat(response.transferAccountId()).isEqualTo(savings.getId());
+        assertThat(response.amount()).isEqualByComparingTo("2000.0000");
+        verify(transactionRepository, atLeast(2)).save(any(Transaction.class));
+    }
+
+    @Test
+    @DisplayName("Should export transactions to CSV bytes")
+    void shouldExportTransactionsCsv() {
+        Transaction tx = new Transaction(testUser, activeAccount, null, new BigDecimal("100.0000"),
+                "INR", TransactionDirection.DEBIT, "Coffee", "Cafe", LocalDate.of(2026, 11, 10), TransactionSource.MANUAL);
+
+        when(transactionRepository.findByUserOrderByTransactionDateDescCreatedAtDesc(testUser))
+                .thenReturn(List.of(tx));
+
+        byte[] csv = transactionService.exportTransactionsCsv(testUser);
+        String csvContent = new String(csv);
+
+        assertThat(csvContent).contains("ID,Date,Account,Category,Amount");
+        assertThat(csvContent).contains("Coffee");
+        assertThat(csvContent).contains("100.0000");
     }
 }
