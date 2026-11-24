@@ -14,8 +14,30 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [user, setUser] = useState<User | null>(() => {
+    if (typeof window !== 'undefined' && window.localStorage) {
+      const cached = window.localStorage.getItem('user');
+      if (cached) {
+        try {
+          return JSON.parse(cached);
+        } catch {
+          // ignore corrupted json
+        }
+      }
+    }
+    return null;
+  });
+  const [isLoading, setIsLoading] = useState(() => {
+    if (typeof window !== 'undefined' && window.localStorage) {
+      const token = window.localStorage.getItem('accessToken');
+      const cached = window.localStorage.getItem('user');
+      // If we already have token AND cached user, don't block initial render with a full-screen spinner
+      if (token && cached) {
+        return false;
+      }
+    }
+    return true;
+  });
 
   useEffect(() => {
     const initAuth = async () => {
@@ -33,13 +55,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const response = await api.get<ApiResponse<User>>('/auth/me');
         if (response.data.success && response.data.data) {
           setUser(response.data.data);
+          window.localStorage.setItem('user', JSON.stringify(response.data.data));
         } else {
           window.localStorage.removeItem('accessToken');
           window.localStorage.removeItem('refreshToken');
+          window.localStorage.removeItem('user');
+          setUser(null);
         }
       } catch {
         window.localStorage.removeItem('accessToken');
         window.localStorage.removeItem('refreshToken');
+        window.localStorage.removeItem('user');
+        setUser(null);
       } finally {
         setIsLoading(false);
       }
@@ -57,6 +84,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const { accessToken, refreshToken, user: authUser } = response.data.data;
     localStorage.setItem('accessToken', accessToken);
     localStorage.setItem('refreshToken', refreshToken);
+    localStorage.setItem('user', JSON.stringify(authUser));
     setUser(authUser);
   };
 
@@ -70,6 +98,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const { accessToken, refreshToken, user: authUser } = response.data.data;
     localStorage.setItem('accessToken', accessToken);
     localStorage.setItem('refreshToken', refreshToken);
+    localStorage.setItem('user', JSON.stringify(authUser));
     setUser(authUser);
   };
 
@@ -84,6 +113,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } finally {
       localStorage.removeItem('accessToken');
       localStorage.removeItem('refreshToken');
+      localStorage.removeItem('user');
       setUser(null);
       window.location.href = '/login';
     }

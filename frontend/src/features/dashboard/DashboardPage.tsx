@@ -9,7 +9,14 @@ import { LoadingSpinner } from '@/components/LoadingSpinner';
 
 export function DashboardPage() {
   const { user } = useAuth();
-  const currentMonthStr = new Date().toISOString().slice(0, 7);
+  // Helper to format YYYY-MM in local calendar time
+  const getLocalMonthString = (date: Date = new Date()) => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    return `${year}-${month}`;
+  };
+
+  const currentMonthStr = getLocalMonthString();
   const [selectedMonth, setSelectedMonth] = useState<string>(currentMonthStr);
   const [isWakingUp, setIsWakingUp] = useState(false);
 
@@ -47,25 +54,33 @@ export function DashboardPage() {
   const currency = summary?.currency || user?.baseCurrency || 'INR';
 
   const handlePrevMonth = () => {
-    const parts = selectedMonth.split('-').map(Number);
-    const y = parts[0] ?? new Date().getFullYear();
-    const m = parts[1] ?? new Date().getMonth() + 1;
-    const date = new Date(y, m - 2, 1);
-    setSelectedMonth(date.toISOString().slice(0, 7));
+    const parts = selectedMonth.split('-');
+    let y = parseInt(parts[0] || '0', 10) || new Date().getFullYear();
+    let m = parseInt(parts[1] || '0', 10) || new Date().getMonth() + 1;
+    m -= 1;
+    if (m < 1) {
+      m = 12;
+      y -= 1;
+    }
+    setSelectedMonth(`${y}-${String(m).padStart(2, '0')}`);
   };
 
   const handleNextMonth = () => {
-    const parts = selectedMonth.split('-').map(Number);
-    const y = parts[0] ?? new Date().getFullYear();
-    const m = parts[1] ?? new Date().getMonth() + 1;
-    const date = new Date(y, m, 1);
-    setSelectedMonth(date.toISOString().slice(0, 7));
+    const parts = selectedMonth.split('-');
+    let y = parseInt(parts[0] || '0', 10) || new Date().getFullYear();
+    let m = parseInt(parts[1] || '0', 10) || new Date().getMonth() + 1;
+    m += 1;
+    if (m > 12) {
+      m = 1;
+      y += 1;
+    }
+    setSelectedMonth(`${y}-${String(m).padStart(2, '0')}`);
   };
 
   const formatMonthTitle = (monthStr: string) => {
-    const parts = monthStr.split('-').map(Number);
-    const y = parts[0] ?? new Date().getFullYear();
-    const m = parts[1] ?? new Date().getMonth() + 1;
+    const parts = monthStr.split('-');
+    const y = parseInt(parts[0] || '0', 10) || new Date().getFullYear();
+    const m = parseInt(parts[1] || '0', 10) || new Date().getMonth() + 1;
     const date = new Date(y, m - 1, 1);
     return new Intl.DateTimeFormat('en-IN', { month: 'long', year: 'numeric' }).format(date);
   };
