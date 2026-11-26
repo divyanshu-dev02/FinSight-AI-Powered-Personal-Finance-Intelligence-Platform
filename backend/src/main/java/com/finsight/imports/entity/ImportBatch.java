@@ -19,6 +19,9 @@ public class ImportBatch {
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
 
+    @Column(name = "account_id")
+    private UUID accountId;
+
     @Column(name = "file_name", nullable = false)
     private String fileName;
 
@@ -85,6 +88,14 @@ public class ImportBatch {
     @PreUpdate
     protected void onUpdate() {
         updatedAt = Instant.now();
+    }
+
+    public UUID getAccountId() {
+        return accountId;
+    }
+
+    public void setAccountId(UUID accountId) {
+        this.accountId = accountId;
     }
 
     public UUID getId() {

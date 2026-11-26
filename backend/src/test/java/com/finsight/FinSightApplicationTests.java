@@ -1,5 +1,6 @@
 package com.finsight;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -15,7 +16,9 @@ import org.springframework.test.context.ActiveProfiles;
 import org.testcontainers.containers.PostgreSQLContainer;
 
 import java.nio.charset.StandardCharsets;
+import java.util.List;
 import java.util.Map;
+import java.util.concurrent.Executors;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -126,6 +129,100 @@ class FinSightApplicationTests {
         return create("/api/v1/transactions", token,
                 Map.of("accountId", accountId, "direction", "DEBIT", "currency", currency,
                         "amount", amount, "description", merchant, "merchant", merchant, "transactionDate", date), "id");
+    }
+
+    @Test
+    void statementReviewSkipsMatchesPersistsRulesAndReturnsTheSameBatchOnRetry() throws Exception {
+        String token = register("statement-review@example.test");
+        String other = register("another-statement-review@example.test");
+        String account = account(token, "INR");
+        String otherAccount = account(other, "INR");
+        String existing = datedExpense(token, account, "INR", "Store", 50, "2025-06-01");
+        var preview = preview(token, account, """
+                Date,Description,Merchant,Debit,Credit
+                2025-06-01, STORE ,Store,50.0000,
+                2025-06-02,Supermarket groceries,LOCAL   MARKET,75,
+                2025-06-02,Supermarket groceries,LOCAL   MARKET,75.00,
+                invalid,Unparseable,,20,
+                """);
+        String previewToken = preview.path("fileToken").asText();
+        var rows = preview.path("previewRows");
+        assertThat(preview.path("duplicateRows").asInt()).isEqualTo(2);
+        assertThat(rows.get(0).path("matchingTransactionId").asText()).isEqualTo(existing);
+        assertThat(rows.get(1).path("suggestedCategoryName").asText()).isEqualTo("Groceries");
+        assertThat(rows.get(2).path("duplicateReason").asText()).isEqualTo("IN_FILE");
+        assertThat(rows.get(3).path("validationError").asText()).isNotBlank();
+
+        mvc.perform(get("/api/v1/transactions/import/previews/" + previewToken + "/rows")
+                        .header("Authorization", "Bearer " + other))
+                .andExpect(status().isBadRequest());
+        var review = Map.of("rowNumber", 2,
+                "categoryId", "00000000-0000-0000-0000-000000000018", "saveRule", true);
+        var payload = Map.of("fileToken", previewToken, "accountId", account, "skipDuplicates", true,
+                "reviews", List.of(review));
+        var first = confirm(token, payload);
+        assertThat(first.path("successfulRows").asInt()).isEqualTo(1);
+        assertThat(first.path("duplicateRows").asInt()).isEqualTo(2);
+        assertThat(first.path("rejectionDetails").get(0).path("rowNumber").asInt()).isEqualTo(4);
+        assertThat(confirm(token, payload).path("id").asText()).isEqualTo(first.path("id").asText());
+
+        String later = """
+                Date,Description,Merchant,Debit,Credit
+                2025-06-03,Another supermarket trip,local market,90,
+                """;
+        var next = preview(token, account, later);
+        assertThat(next.path("previewRows").get(0).path("suggestedCategoryName").asText()).isEqualTo("Shopping");
+        assertThat(next.path("previewRows").get(0).path("savedRule").asBoolean()).isTrue();
+        assertThat(preview(other, otherAccount, later).path("previewRows").get(0).path("savedRule").asBoolean()).isFalse();
+
+        mvc.perform(get("/api/v1/transactions/imports").header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.data.length()").value(1));
+
+        confirm(token, Map.of("fileToken", next.path("fileToken").asText(), "accountId", account, "skipDuplicates", true));
+        mvc.perform(get("/api/v1/transactions").header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.data.content[0].categoryName").value("Shopping"));
+
+        var override = preview(token, account, later.replace("2025-06-03", "2025-06-04"));
+        confirm(token, Map.of("fileToken", override.path("fileToken").asText(), "accountId", account,
+                "skipDuplicates", true, "reviews", List.of(Map.of("rowNumber", 1, "saveRule", false))));
+        mvc.perform(get("/api/v1/transactions").header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.data.content[0].categoryId").doesNotExist());
+    }
+
+    @Test
+    void overlappingConcurrentStatementConfirmationsImportEachMatchingRowOnce() throws Exception {
+        String token = register("concurrent-import@example.test");
+        String account = account(token, "INR");
+        String csv = """
+                Date,Description,Debit,Credit
+                2025-06-02,Groceries,75,
+                """;
+        var first = preview(token, account, csv);
+        var second = preview(token, account, csv);
+        try (var executor = Executors.newVirtualThreadPerTaskExecutor()) {
+            var one = executor.submit(() -> confirm(token, Map.of("accountId", account,
+                    "fileToken", first.path("fileToken").asText(), "skipDuplicates", true)));
+            var two = executor.submit(() -> confirm(token, Map.of("accountId", account,
+                    "fileToken", second.path("fileToken").asText(), "skipDuplicates", true)));
+            assertThat(List.of(one.get().path("successfulRows").asInt(), two.get().path("successfulRows").asInt()))
+                    .containsExactlyInAnyOrder(0, 1);
+        }
+    }
+
+    private JsonNode preview(String token, String account, String csv) throws Exception {
+        var file = new MockMultipartFile("file", "review.csv", "text/csv", csv.getBytes(StandardCharsets.UTF_8));
+        String body = mvc.perform(multipart("/api/v1/transactions/import/preview").file(file).param("accountId", account)
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        return json.readTree(body).path("data");
+    }
+
+    private JsonNode confirm(String token, Map<String, ?> payload) throws Exception {
+        String body = mvc.perform(post("/api/v1/transactions/import/confirm")
+                        .header("Authorization", "Bearer " + token).contentType("application/json")
+                        .content(json.writeValueAsBytes(payload)))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        return json.readTree(body).path("data");
     }
 
     private void importExpense(String token, String account) throws Exception {

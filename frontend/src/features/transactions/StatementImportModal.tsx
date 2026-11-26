@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api, ApiResponse } from '@/lib/api';
-import { FinancialAccount } from '@/types/finance';
+import { Link } from 'react-router-dom';
+import { Category, FinancialAccount } from '@/types/finance';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
 
@@ -15,6 +16,12 @@ interface CsvPreviewRow {
   categoryName?: string;
   duplicate: boolean;
   validationError?: string;
+  normalizedMerchant?: string;
+  duplicateReason?: 'IN_FILE' | 'EXISTING';
+  matchingTransactionId?: string;
+  suggestedCategoryId?: string;
+  suggestedCategoryName?: string;
+  savedRule: boolean;
 }
 
 interface CsvColumnMapping {
@@ -41,6 +48,23 @@ interface CsvPreviewResponse {
   errorRows: number;
 }
 
+interface ImportBatch {
+  id: string;
+  fileName: string;
+  status: string;
+  successfulRows: number;
+  duplicateRows: number;
+  failedRows: number;
+  startedAt: string;
+  rejectionDetails?: { rowNumber: number; message: string }[];
+}
+
+interface RowReview {
+  rowNumber: number;
+  categoryId?: string;
+  saveRule: boolean;
+}
+
 interface StatementImportModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -48,12 +72,15 @@ interface StatementImportModalProps {
 
 export function StatementImportModal({ isOpen, onClose }: StatementImportModalProps) {
   const queryClient = useQueryClient();
-  const [step, setStep] = useState<'UPLOAD' | 'PREVIEW' | 'SUCCESS'>('UPLOAD');
+  const [step, setStep] = useState<'UPLOAD' | 'PREVIEW' | 'SUCCESS' | 'HISTORY'>('UPLOAD');
   const [selectedAccountId, setSelectedAccountId] = useState<string>('');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [pdfPassword, setPdfPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [previewData, setPreviewData] = useState<CsvPreviewResponse | null>(null);
+  const [reviews, setReviews] = useState<Record<number, RowReview>>({});
+  const [page, setPage] = useState(0);
+  const [batch, setBatch] = useState<ImportBatch>();
   const [skipDuplicates, setSkipDuplicates] = useState(true);
   const [previewFilter, setPreviewFilter] = useState<'ALL' | 'DUPLICATES' | 'UNCATEGORIZED' | 'ERRORS'>('ALL');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -67,6 +94,27 @@ export function StatementImportModal({ isOpen, onClose }: StatementImportModalPr
     },
     enabled: isOpen,
   });
+
+  const { data: categories } = useQuery({
+    queryKey: ['categories'],
+    queryFn: async () => (await api.get<ApiResponse<Category[]>>('/categories')).data.data,
+    enabled: isOpen && step === 'PREVIEW',
+  });
+  const history = useQuery({
+    queryKey: ['statement-import-history'],
+    queryFn: async () => (await api.get<ApiResponse<ImportBatch[]>>('/transactions/imports')).data.data,
+    enabled: isOpen && step === 'HISTORY',
+  });
+  const additionalRows = useQuery({
+    queryKey: ['statement-preview', previewData?.fileToken, page],
+    queryFn: async ({ signal }) => (await api.get<ApiResponse<CsvPreviewRow[]>>(
+      `/transactions/import/previews/${previewData?.fileToken}/rows`, { params: { page }, signal }
+    )).data.data,
+    enabled: isOpen && step === 'PREVIEW' && !!previewData && page > 0,
+    retry: false,
+  });
+  const pageRows = page === 0 ? previewData?.previewRows ?? [] : additionalRows.data ?? [];
+  const currency = accounts?.find(account => account.id === selectedAccountId)?.currency;
 
   const getFileFormat = (file: File | null) => {
     if (!file) return null;
@@ -100,6 +148,10 @@ export function StatementImportModal({ isOpen, onClose }: StatementImportModalPr
     },
     onSuccess: (data) => {
       setPreviewData(data);
+      setPage(0);
+      setReviews({});
+      setPreviewFilter('ALL');
+      setPdfPassword('');
       setStep('PREVIEW');
       setErrorMessage(null);
     },
@@ -117,11 +169,17 @@ export function StatementImportModal({ isOpen, onClose }: StatementImportModalPr
         accountId: selectedAccountId,
         mapping: previewData.suggestedMapping,
         skipDuplicates,
+        reviews: Object.values(reviews),
       };
-      const res = await api.post('/transactions/import/confirm', payload);
-      return res.data;
+      const res = await api.post<ApiResponse<ImportBatch>>('/transactions/import/confirm', payload);
+      return res.data.data;
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
+      setBatch(data);
+      setErrorMessage(null);
+      void queryClient.invalidateQueries({ queryKey: ['statement-import-history'] });
+      void queryClient.invalidateQueries({ queryKey: ['copilot-spending'] });
+      void queryClient.invalidateQueries({ queryKey: ['categories'] });
       queryClient.invalidateQueries({ queryKey: ['transactions'] });
       queryClient.invalidateQueries({ queryKey: ['accounts'] });
       queryClient.invalidateQueries({ queryKey: ['dashboard-summary'] });
@@ -148,13 +206,17 @@ export function StatementImportModal({ isOpen, onClose }: StatementImportModalPr
     setSelectedFile(null);
     setPdfPassword('');
     setPreviewData(null);
+    setReviews({});
+    setPage(0);
+    setBatch(undefined);
+    setSkipDuplicates(true);
     setErrorMessage(null);
     onClose();
   };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs">
-      <div className="w-full max-w-3xl max-h-[90vh] overflow-y-auto rounded-2xl bg-white p-6 shadow-2xl border border-gray-100 transition-all">
+      <div role="dialog" aria-modal="true" aria-labelledby="statement-import-title" className="w-full max-w-4xl max-h-[90vh] overflow-y-auto rounded-2xl bg-white p-4 sm:p-6 shadow-2xl border border-gray-100 transition-all">
         {/* Modal Header */}
         <div className="flex items-center justify-between border-b border-gray-100 pb-4">
           <div className="flex items-center gap-3">
@@ -162,7 +224,7 @@ export function StatementImportModal({ isOpen, onClose }: StatementImportModalPr
               ⚡
             </div>
             <div>
-              <h3 className="text-lg font-bold text-gray-900">Universal Statement Parser</h3>
+              <h3 id="statement-import-title" className="text-lg font-bold text-gray-900">Import statement</h3>
               <p className="text-xs text-gray-500">
                 Upload bank statements in any format: PDF (including password-protected), Excel (.xlsx/.xls), or CSV.
               </p>
@@ -170,6 +232,8 @@ export function StatementImportModal({ isOpen, onClose }: StatementImportModalPr
           </div>
           <button
             onClick={handleReset}
+            aria-label="Close statement import"
+            disabled={confirmMutation.isPending || previewMutation.isPending}
             className="rounded-lg p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors"
           >
             ✕
@@ -177,10 +241,45 @@ export function StatementImportModal({ isOpen, onClose }: StatementImportModalPr
         </div>
 
         {errorMessage && (
-          <div className="mt-4 rounded-xl bg-red-50 p-4 border border-red-200 text-xs text-red-700 flex items-center gap-2">
+          <div role="alert" className="mt-4 rounded-xl bg-red-50 p-4 border border-red-200 text-xs text-red-700 flex items-center gap-2">
             <span className="text-base">⚠️</span>
             <span>{errorMessage}</span>
           </div>
+        )}
+
+        {(step === 'UPLOAD' || step === 'SUCCESS') && (
+          <button type="button" onClick={() => { setStep('HISTORY'); setErrorMessage(null); }}
+            className="mt-4 text-sm font-semibold text-blue-700 underline">
+            View import history
+          </button>
+        )}
+        {step === 'HISTORY' && (
+          <section className="mt-4 space-y-3" aria-label="Import history">
+            <button type="button" onClick={() => setStep('UPLOAD')} className="text-sm text-blue-700 underline">
+              Back to upload
+            </button>
+            {history.isPending && <p role="status">Loading history…</p>}
+            {history.isError && <p role="alert">Could not load import history. <button type="button" onClick={() => void history.refetch()} className="underline">Retry</button></p>}
+            {history.data?.length === 0 && <p>No statements imported yet.</p>}
+            <ul className="divide-y divide-gray-200">
+              {history.data?.map(item => (
+                <li key={item.id} className="space-y-1 py-3 text-sm">
+                  <p className="break-words font-semibold">{item.fileName}</p>
+                  <p className="text-gray-600">{formatDate(item.startedAt)} · {item.status.toLowerCase()}</p>
+                  <p>{item.successfulRows} imported · {item.duplicateRows} duplicate rows · {item.failedRows} rejected</p>
+                  {!!item.rejectionDetails?.length && (
+                    <details>
+                      <summary className="cursor-pointer text-blue-700">View rejected rows</summary>
+                      <ul className="space-y-1 py-1">
+                        {item.rejectionDetails.map(issue => <li key={issue.rowNumber}>Row {issue.rowNumber} · {issue.message}</li>)}
+                      </ul>
+                      {item.failedRows > item.rejectionDetails.length && <p>Showing the first {item.rejectionDetails.length} rejections.</p>}
+                    </details>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </section>
         )}
 
         {/* STEP 1: UPLOAD */}
@@ -188,10 +287,11 @@ export function StatementImportModal({ isOpen, onClose }: StatementImportModalPr
           <div className="mt-5 space-y-4">
             {/* Target Account Picker */}
             <div>
-              <label className="block text-xs font-semibold uppercase tracking-wider text-gray-600">
+              <label htmlFor="statement-target-account" className="block text-xs font-semibold uppercase tracking-wider text-gray-600">
                 Target Financial Account
               </label>
               <select
+                id="statement-target-account"
                 value={selectedAccountId}
                 onChange={(e) => setSelectedAccountId(e.target.value)}
                 className="mt-1.5 block w-full rounded-xl border border-gray-300 px-3.5 py-2.5 text-sm font-medium text-gray-800 shadow-xs focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100 transition-all"
@@ -292,12 +392,15 @@ export function StatementImportModal({ isOpen, onClose }: StatementImportModalPr
 
         {/* STEP 2: PREVIEW & CONFIRM */}
         {step === 'PREVIEW' && previewData && (() => {
-          const isUncategorized = (row: CsvPreviewRow) =>
-            !row.categoryName || row.categoryName.trim().toLowerCase() === 'uncategorized';
-          const uncategorizedRows = previewData.previewRows.filter((r) => !r.validationError && isUncategorized(r));
-          const uncategorizedCount = uncategorizedRows.length;
+          const isUncategorized = (row: CsvPreviewRow) => {
+            const review = reviews[row.rowNumber];
+            return review
+              ? !review.categoryId
+              : !row.savedRule && (!row.categoryName || row.categoryName.trim().toLowerCase() === 'uncategorized');
+          };
+          const uncategorizedCount = pageRows.filter(row => !row.validationError && isUncategorized(row)).length;
 
-          const filteredRows = previewData.previewRows.filter((row) => {
+          const filteredRows = pageRows.filter((row) => {
             if (previewFilter === 'DUPLICATES') return row.duplicate;
             if (previewFilter === 'UNCATEGORIZED') return !row.validationError && isUncategorized(row);
             if (previewFilter === 'ERRORS') return !!row.validationError;
@@ -307,7 +410,7 @@ export function StatementImportModal({ isOpen, onClose }: StatementImportModalPr
           return (
             <div className="mt-5 space-y-4">
               {/* Metric badges / Filter tabs */}
-              <div className="grid grid-cols-4 gap-2.5 text-center">
+              <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4 text-center">
                 <button
                   type="button"
                   onClick={() => setPreviewFilter('ALL')}
@@ -373,8 +476,8 @@ export function StatementImportModal({ isOpen, onClose }: StatementImportModalPr
                       {previewData.duplicateRows} Potential Duplicate{previewData.duplicateRows > 1 ? 's' : ''} Detected
                     </p>
                     <p className="text-amber-800">
-                      These transactions match existing records based on date, amount, and cryptographic fingerprint.
-                      {skipDuplicates ? ' They will be safely skipped during import.' : ' Will be imported as duplicates.'}
+                      These rows share a date, amount, direction, and description with an existing transaction or another row in this file.
+                      {skipDuplicates ? ' They will be safely skipped during import.' : '  Matching rows will be kept.'}
                     </p>
                   </div>
                 </div>
@@ -389,14 +492,14 @@ export function StatementImportModal({ isOpen, onClose }: StatementImportModalPr
                       {uncategorizedCount} Uncategorized Transaction{uncategorizedCount > 1 ? 's' : ''}
                     </p>
                     <p className="text-purple-800">
-                      No matching category was found. They will be imported with an "Uncategorized" label so you can review and categorize them later.
+                      Choose a category or leave them uncategorized. Saved merchant rules apply automatically unless you override them.
                     </p>
                   </div>
                 </div>
               )}
 
               {/* Duplicate policy checkbox */}
-              <div className="flex items-center justify-between pt-1">
+              <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
                 <label className="flex items-center gap-2 text-xs font-medium text-gray-700 cursor-pointer">
                   <input
                     type="checkbox"
@@ -404,7 +507,7 @@ export function StatementImportModal({ isOpen, onClose }: StatementImportModalPr
                     onChange={(e) => setSkipDuplicates(e.target.checked)}
                     className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 h-4 w-4"
                   />
-                  Skip {previewData.duplicateRows} duplicate transaction(s) using cryptographic fingerprinting
+                  Skip rows with matching transactions
                 </label>
                 {previewFilter !== 'ALL' && (
                   <button
@@ -412,13 +515,23 @@ export function StatementImportModal({ isOpen, onClose }: StatementImportModalPr
                     onClick={() => setPreviewFilter('ALL')}
                     className="text-xs text-blue-600 hover:text-blue-700 font-medium"
                   >
-                    Reset filter (showing {filteredRows.length} of {previewData.totalRows})
+                    Reset page filter
                   </button>
                 )}
               </div>
 
-              {/* Sample Table */}
-              <div className="max-h-64 overflow-y-auto rounded-xl border border-gray-200">
+              <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
+                <span>Page {page + 1} of {Math.max(1, Math.ceil(previewData.totalRows / 25))}</span>
+                <div className="flex gap-3">
+                  <button type="button" disabled={page === 0} onClick={() => setPage(page - 1)} className="text-blue-700 underline disabled:text-slate-400">Previous</button>
+                  <button type="button" disabled={(page + 1) * 25 >= previewData.totalRows} onClick={() => setPage(page + 1)} className="text-blue-700 underline disabled:text-slate-400">Next</button>
+                </div>
+              </div>
+              {page > 0 && additionalRows.isPending && <p role="status">Loading statement rows…</p>}
+              {page > 0 && additionalRows.isError && <p role="alert">Could not load this page. <button type="button" className="underline" onClick={() => void additionalRows.refetch()}>Retry</button></p>}
+
+              {/* Statement rows */}
+              <div className="max-h-96 overflow-auto rounded-xl border border-gray-200">
                 <table className="min-w-full divide-y divide-gray-200 text-xs">
                   <thead className="bg-gray-50 text-gray-600 uppercase tracking-wider text-left font-semibold sticky top-0">
                     <tr>
@@ -440,6 +553,7 @@ export function StatementImportModal({ isOpen, onClose }: StatementImportModalPr
                     ) : (
                       filteredRows.map((row) => {
                         const uncategorized = isUncategorized(row);
+                        const review = reviews[row.rowNumber];
                         return (
                           <tr
                             key={row.rowNumber}
@@ -452,36 +566,75 @@ export function StatementImportModal({ isOpen, onClose }: StatementImportModalPr
                               {row.date ? formatDate(row.date) : '—'}
                             </td>
                             <td className="px-3.5 py-2.5 text-gray-900 font-medium truncate max-w-xs">
-                              {row.description || (row.validationError ? (
-                                <span className="text-red-600 font-normal">{row.validationError}</span>
-                              ) : '—')}
+                              {row.description}
+                              {row.normalizedMerchant && <span className="block text-slate-500">{row.normalizedMerchant}</span>}
+                              {row.validationError && <span className="block whitespace-normal text-red-700">{row.validationError}</span>}
                             </td>
-                            <td className="px-3.5 py-2.5 whitespace-nowrap">
-                              {uncategorized ? (
-                                <span className="inline-flex items-center gap-1 text-[11px] font-medium text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-md">
-                                  <span>🏷️</span> Uncategorized
-                                </span>
-                              ) : (
-                                <span className="inline-flex items-center text-[11px] font-medium text-gray-700 bg-gray-100 px-2 py-0.5 rounded-md">
-                                  {row.categoryName}
-                                </span>
+                            <td className="px-3.5 py-2.5">
+                              {!row.validationError && (
+                                <div className="min-w-44 space-y-1">
+                                  <select
+                                    aria-label={`Category for row ${row.rowNumber}`}
+                                    disabled={(skipDuplicates && row.duplicate) || confirmMutation.isPending}
+                                    className="w-full rounded border border-slate-300 px-2 py-1"
+                                    value={review
+                                      ? review.categoryId ?? ''
+                                      : row.savedRule || row.categoryName ? row.suggestedCategoryId ?? 'original' : 'original'}
+                                    onChange={event => {
+                                      const categoryId = event.target.value;
+                                      setReviews(current => {
+                                        const next = { ...current };
+                                        if (categoryId === 'original') delete next[row.rowNumber];
+                                        else next[row.rowNumber] = { rowNumber: row.rowNumber, categoryId: categoryId || undefined, saveRule: false };
+                                        return next;
+                                      });
+                                    }}
+                                  >
+                                    <option value="original">{row.categoryName || 'Default category'}</option>
+                                    <option value="">Uncategorized</option>
+                                    {categories?.filter(category => category.type === (row.direction === 'CREDIT' ? 'INCOME' : 'EXPENSE'))
+                                      .map(category => <option key={category.id} value={category.id}>{category.name}</option>)}
+                                  </select>
+                                  {row.suggestedCategoryName && (
+                                    <p className="text-slate-600">{row.savedRule ? 'Saved rule' : 'Suggested'} · {row.suggestedCategoryName}</p>
+                                  )}
+                                  {row.suggestedCategoryId && !row.savedRule && !row.categoryName && !review && (
+                                    <button type="button" disabled={confirmMutation.isPending || (skipDuplicates && row.duplicate)}
+                                      className="text-blue-700 underline disabled:text-slate-400"
+                                      onClick={() => setReviews(current => ({
+                                        ...current, [row.rowNumber]: { rowNumber: row.rowNumber, categoryId: row.suggestedCategoryId, saveRule: false },
+                                      }))}>
+                                      Use suggestion for row {row.rowNumber}
+                                    </button>
+                                  )}
+                                  {row.normalizedMerchant && review?.categoryId && (
+                                    <label className="flex items-start gap-1">
+                                      <input type="checkbox" checked={review.saveRule}
+                                        disabled={confirmMutation.isPending || (skipDuplicates && row.duplicate)}
+                                        onChange={event => setReviews(current => ({
+                                          ...current, [row.rowNumber]: { ...review, saveRule: event.target.checked },
+                                        }))} />
+                                      Use for future {row.normalizedMerchant} charges of this type
+                                    </label>
+                                  )}
+                                </div>
                               )}
                             </td>
                             <td className="px-3.5 py-2.5 font-bold text-right whitespace-nowrap">
                               {row.amount ? (
                                 <span className={row.direction === 'CREDIT' ? 'text-emerald-600' : 'text-gray-900'}>
-                                  {row.direction === 'CREDIT' ? '+' : '-'} {formatCurrency(row.amount)}
+                                  {row.direction === 'CREDIT' ? '+' : '-'} {formatCurrency(row.amount, currency)}
                                 </span>
                               ) : '—'}
                             </td>
-                            <td className="px-3.5 py-2.5 text-center whitespace-nowrap">
+                            <td className="space-y-2 px-3.5 py-2.5 text-center whitespace-nowrap">
                               {row.validationError ? (
                                 <span className="rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-bold text-red-700">
                                   Error
                                 </span>
                               ) : row.duplicate ? (
                                 <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-800">
-                                  Duplicate
+                                  {row.duplicateReason === 'IN_FILE' ? 'Repeated in file' : 'Existing match'}
                                 </span>
                               ) : uncategorized ? (
                                 <span className="rounded-full bg-purple-100 px-2 py-0.5 text-[10px] font-bold text-purple-800">
@@ -491,6 +644,10 @@ export function StatementImportModal({ isOpen, onClose }: StatementImportModalPr
                                 <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-800">
                                   Valid
                                 </span>
+                              )}
+                              {row.matchingTransactionId && (
+                                <Link to={`/transactions?evidence=${row.matchingTransactionId}`}
+                                  target="_blank" rel="noopener" className="block text-blue-700 underline">View match</Link>
                               )}
                             </td>
                           </tr>
@@ -505,18 +662,19 @@ export function StatementImportModal({ isOpen, onClose }: StatementImportModalPr
                 <button
                   type="button"
                   onClick={() => setStep('UPLOAD')}
+                  disabled={confirmMutation.isPending}
                   className="rounded-xl border border-gray-300 px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
                 >
                   Back
                 </button>
                 <button
                   type="button"
-                  disabled={confirmMutation.isPending || previewData.validRows === 0}
+                  disabled={confirmMutation.isPending || previewData.totalRows === previewData.errorRows}
                   onClick={() => confirmMutation.mutate()}
                   className="inline-flex items-center rounded-xl bg-blue-600 px-6 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-blue-700 disabled:opacity-50 transition-all cursor-pointer"
                 >
                   {confirmMutation.isPending ? <LoadingSpinner size="sm" className="mr-2 border-white" /> : null}
-                  Confirm & Import ({previewData.validRows} transactions)
+                  Confirm import
                 </button>
               </div>
             </div>
@@ -529,9 +687,9 @@ export function StatementImportModal({ isOpen, onClose }: StatementImportModalPr
             <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-emerald-100 text-emerald-600 text-3xl shadow-xs">
               ✓
             </div>
-            <h4 className="text-xl font-extrabold text-gray-900">Statement Imported Successfully!</h4>
+            <h4 className="text-xl font-extrabold text-gray-900">Statement import complete</h4>
             <p className="text-sm text-gray-500 max-w-md mx-auto leading-relaxed">
-              Your statement transactions have been securely parsed, validated, and recorded in your Financial Digital Twin.
+              {batch && `${batch.successfulRows} imported · ${batch.duplicateRows} skipped as duplicates · ${batch.failedRows} rejected`}
             </p>
             <div className="pt-4">
               <button

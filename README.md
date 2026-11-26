@@ -21,7 +21,11 @@
 
 - **Dashboard** — Account balances, cash flow, and spending by category.
 - **Accounts and transactions** — Manage accounts, record transfers, and export transactions as CSV.
-- **Statement imports** — Preview and import CSV, Excel, and PDF statements.
+- **Statement imports** — Review CSV, Excel, and PDF statements before saving.
+  Check possible duplicates, accept or override category suggestions, and save
+  merchant rules for future imports. Import history shows saved, skipped, and
+  rejected rows. Duplicate skipping is on by default and can be turned off
+  for legitimate identical charges.
 - **Spending brief** — Compare spending across periods by currency, review
   possible monthly charges and price increases, and dismiss findings after review.
 - **Copilot** — Review spending by currency, compare months, and open the

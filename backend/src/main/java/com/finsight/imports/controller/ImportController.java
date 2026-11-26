@@ -5,6 +5,7 @@ import com.finsight.identity.entity.User;
 import com.finsight.identity.service.UserService;
 import com.finsight.imports.dto.ConfirmImportRequest;
 import com.finsight.imports.dto.CsvPreviewResponse;
+import com.finsight.imports.dto.CsvPreviewRow;
 import com.finsight.imports.dto.ImportBatchResponse;
 import com.finsight.imports.service.ImportService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -44,6 +45,14 @@ public class ImportController {
         User user = userService.findEntityByEmail(authentication.getName());
         CsvPreviewResponse preview = importService.generatePreview(file, accountId, user, password);
         return ResponseEntity.ok(ApiResponse.success(preview));
+    }
+
+    @GetMapping("/import/previews/{token}/rows")
+    @Operation(summary = "Review another page of a statement preview")
+    public ApiResponse<List<CsvPreviewRow>> getPreviewRows(@PathVariable UUID token,
+            @RequestParam(defaultValue = "0") int page, Authentication authentication) {
+        return ApiResponse.success(importService.getPreviewRows(token,
+                userService.findEntityByEmail(authentication.getName()), page));
     }
 
     @PostMapping("/import/confirm")

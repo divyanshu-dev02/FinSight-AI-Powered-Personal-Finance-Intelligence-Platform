@@ -1,5 +1,6 @@
 package com.finsight.imports.dto;
 
+import com.fasterxml.jackson.annotation.JsonRawValue;
 import com.finsight.imports.entity.ImportBatch;
 import com.finsight.imports.entity.ImportBatchStatus;
 
@@ -16,7 +17,8 @@ public record ImportBatchResponse(
     int failedRows,
     int duplicateRows,
     Instant startedAt,
-    Instant completedAt
+    Instant completedAt,
+    @JsonRawValue String rejectionDetails
 ) {
     public static ImportBatchResponse fromEntity(ImportBatch batch) {
         return new ImportBatchResponse(
@@ -29,7 +31,8 @@ public record ImportBatchResponse(
             batch.getFailedRows(),
             batch.getDuplicateRows(),
             batch.getStartedAt(),
-            batch.getCompletedAt()
+            batch.getCompletedAt(),
+            batch.getErrorSummary()
         );
     }
 }

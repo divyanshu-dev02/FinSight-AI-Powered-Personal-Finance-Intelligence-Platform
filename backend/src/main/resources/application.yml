@@ -23,6 +23,11 @@ spring:
     locations: classpath:db/migration
     baseline-on-migrate: true
 
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 11MB
+
   jackson:
     serialization:
       write-dates-as-timestamps: false
