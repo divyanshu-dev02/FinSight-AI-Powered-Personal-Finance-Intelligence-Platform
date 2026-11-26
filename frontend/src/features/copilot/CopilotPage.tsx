@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { useMutation, useQuery } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { api, ApiResponse } from '@/lib/api';
 import { formatCurrency, formatDate } from '@/lib/utils';
+import { CopilotChat } from './CopilotChat';
 
 type Total = { currency: string; amount: number };
 type Expense = Total & { id: string; date: string };
@@ -41,32 +42,13 @@ export function CopilotPage() {
       return response.data.data;
     },
   });
-  const [input, setInput] = useState('');
-  const [consent, setConsent] = useState(false);
-  const [unsupported, setUnsupported] = useState(false);
-  const availability = useQuery({
-    queryKey: ['copilot-availability'],
-    queryFn: async () => (await api.get<ApiResponse<boolean>>('/copilot/availability')).data.data,
-  });
-  const ask = useMutation({
-    mutationFn: async () => {
-      const response = await api.post<ApiResponse<'SPENDING' | 'COMPARISON' | 'EVIDENCE' | 'UNSUPPORTED'>>(
-        '/copilot/question', { question: input.trim(), consent }
-      );
-      return response.data.data;
-    },
-    onSuccess: intent => {
-      const answers = { SPENDING: questions[0], COMPARISON: questions[1], EVIDENCE: questions[2] };
-      setUnsupported(intent === 'UNSUPPORTED');
-      if (intent !== 'UNSUPPORTED') setQuestion(answers[intent]);
-    },
-  });
   const currencies = [...new Set([...data?.current ?? [], ...data?.previous ?? []].map(total => total.currency))];
 
   return (
     <section className="mx-auto max-w-3xl space-y-5">
+      <CopilotChat month={month} comparable={comparable} />
       <div className="flex flex-wrap items-end justify-between gap-4">
-        <p className="text-sm text-slate-600">Explore posted spending across active accounts.</p>
+        <p className="text-sm text-slate-600">Spending shortcuts for active accounts.</p>
         <label className="grid gap-1 text-sm font-medium text-slate-700">
           Statement month
           <input
@@ -90,33 +72,6 @@ export function CopilotPage() {
           </button>
         ))}
       </div>
-      {availability.data && (
-        <form
-          className="grid gap-3 rounded-xl border border-slate-200 bg-white p-4"
-          onSubmit={event => {
-            event.preventDefault();
-            setUnsupported(false);
-            if (consent && input.trim() && !ask.isPending) ask.mutate();
-          }}
-        >
-          <label className="grid gap-1 text-sm font-medium">
-            Ask about the selected month
-            <input value={input} onChange={event => setInput(event.target.value)} maxLength={300}
-              className="min-w-0 rounded-lg border border-slate-300 px-3 py-2"
-              placeholder="How does my spending compare?" />
-          </label>
-          <label className="flex items-start gap-2 text-sm text-slate-700">
-            <input type="checkbox" checked={consent} onChange={event => setConsent(event.target.checked)} />
-            Send my question to OpenAI. Keep personal or account details out of the question.
-          </label>
-          <button type="submit" disabled={!consent || !input.trim() || ask.isPending}
-            className="w-fit rounded-lg bg-blue-700 px-4 py-2 text-sm font-medium text-white disabled:opacity-50">
-            {ask.isPending ? 'Checking…' : 'Ask Copilot'}
-          </button>
-          {unsupported && <p role="status">Try asking for total spending, a comparison with last month, or recent expenses.</p>}
-          {ask.isError && <p role="alert">AI questions are unavailable right now. You can still use the options above.</p>}
-        </form>
-      )}
       <div aria-live="polite" className="space-y-3 rounded-2xl border border-slate-200 bg-white p-4 sm:p-6">
         <h2 className="font-semibold text-slate-900">{question}</h2>
         {isFetching && <p>Checking your transactions…</p>}

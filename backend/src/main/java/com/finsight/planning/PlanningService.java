@@ -24,7 +24,7 @@ import java.util.stream.Collectors;
 import static com.finsight.planning.PlanningModels.*;
 
 @Service
-class PlanningService {
+public class PlanningService {
 
     private static final int MATCH_DAYS = 7;
     private final JdbcClient jdbc;
@@ -38,7 +38,7 @@ class PlanningService {
     }
 
     @Transactional(readOnly = true)
-    Overview overview(User user, YearMonth month) {
+    public Overview overview(User user, YearMonth month) {
         LocalDate today = LocalDate.now(ZoneId.of(user.getTimeZone()));
         LocalDate from = today.minusDays(MATCH_DAYS);
         LocalDate through = today.plusDays(29);

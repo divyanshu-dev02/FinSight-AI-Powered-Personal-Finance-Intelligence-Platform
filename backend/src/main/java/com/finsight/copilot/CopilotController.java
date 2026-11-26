@@ -3,9 +3,6 @@ package com.finsight.copilot;
 import com.finsight.analytics.service.SpendingPeriods;
 import com.finsight.common.dto.ApiResponse;
 import jakarta.validation.Valid;
-import jakarta.validation.constraints.AssertTrue;
-import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.Size;
 import com.finsight.identity.service.UserService;
 import com.finsight.transactions.repository.TransactionRepository;
 import org.springframework.data.domain.PageRequest;
@@ -34,23 +31,22 @@ public class CopilotController {
     private final UserService users;
     private final TransactionRepository transactions;
 
-    private final CopilotQuestionRouter router;
+    private final CopilotAgent agent;
 
-    CopilotController(UserService users, TransactionRepository transactions, CopilotQuestionRouter router) {
+    CopilotController(UserService users, TransactionRepository transactions, CopilotAgent agent) {
         this.users = users;
         this.transactions = transactions;
-        this.router = router;
+        this.agent = agent;
     }
 
     @GetMapping("/availability")
     ApiResponse<Boolean> availability() {
-        return ApiResponse.success(router.isAvailable());
+        return ApiResponse.success(agent.isAvailable());
     }
 
-    @PostMapping("/question")
-    ResponseEntity<ApiResponse<CopilotQuestionRouter.Intent>> question(
-            @Valid @RequestBody Question request, Authentication authentication) {
-        return ResponseEntity.ok(ApiResponse.success(router.classify(request.question(), authentication.getName())));
+    @PostMapping("/chat")
+    ApiResponse<CopilotAgent.Answer> chat(@Valid @RequestBody CopilotAgent.Request request, Authentication authentication) {
+        return ApiResponse.success(agent.answer(users.findEntityByEmail(authentication.getName()), request));
     }
 
     @org.springframework.web.bind.annotation.ExceptionHandler(ResponseStatusException.class)
@@ -58,8 +54,6 @@ public class CopilotController {
         return ResponseEntity.status(exception.getStatusCode())
                 .body(ApiResponse.error("COPILOT_UNAVAILABLE", exception.getReason()));
     }
-
-    record Question(@NotBlank @Size(max = 300) String question, @AssertTrue boolean consent) {}
 
     @GetMapping("/spending")
     ApiResponse<Spending> spending(@RequestParam YearMonth month,

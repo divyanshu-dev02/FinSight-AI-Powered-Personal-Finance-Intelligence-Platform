@@ -2,6 +2,8 @@ package com.finsight;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.finsight.copilot.CopilotModel;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -27,6 +29,9 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.anyMap;
+import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -42,6 +47,71 @@ class FinSightApplicationTests {
 
     @Autowired
     private ObjectMapper json;
+
+    @MockitoBean
+    private CopilotModel copilotModel;
+
+    @Test
+    void conversationalCopilotLooksUpOnlyOwnerDataAndResolvesOnlyRealSources() throws Exception {
+        String owner = register("agent-owner@example.test");
+        String other = register("agent-other@example.test");
+        String inr = account(owner, "INR");
+        String usd = account(owner, "USD");
+        String evidence = datedExpense(owner, inr, "INR", "Local market", 125, "2025-06-03");
+        datedExpense(owner, usd, "USD", "Books", 40, "2025-06-02");
+        datedExpense(other, account(other, "INR"), "INR", "Another user's merchant", 999, "2025-06-03");
+
+        var history = List.of(Map.of("role", "user", "content", "Tell me about June."),
+                Map.of("role", "assistant", "content", "Would you like to review spending?"));
+        var payload = Map.of("question", "Yes, show my spending and the market charge.", "consent", true,
+                "month", "2025-06", "history", history);
+        mvc.perform(post("/api/v1/copilot/chat").header("Authorization", "Bearer " + owner)
+                        .contentType("application/json").content(json.writeValueAsBytes(
+                                Map.of("question", "Show my spending", "consent", false))))
+                .andExpect(status().isBadRequest());
+        verifyNoInteractions(copilotModel);
+
+        var filters = Map.of("start", "2025-06-01", "end", "2025-06-30",
+                "direction", "DEBIT", "merchant", "", "category", "", "account", "");
+        var round = new java.util.concurrent.atomic.AtomicInteger();
+        when(copilotModel.isAvailable()).thenReturn(true);
+        when(copilotModel.respond(anyMap())).thenAnswer(invocation -> {
+            Map<String, Object> request = invocation.getArgument(0);
+            assertThat(request.get("store")).isEqualTo(false);
+            String input = json.writeValueAsString(request.get("input"));
+            assertThat(input).contains("Tell me about June.", "Yes, show my spending", "Would you like to review spending?");
+            if (round.getAndIncrement() == 0) {
+                var args = new java.util.HashMap<String, String>(filters);
+                args.put("groupBy", "NONE");
+                return agentCall("analyze_transactions", "total_call", args);
+            }
+            assertThat(input).contains("function_call_output", "total_call", "125.0000", "40.0000");
+            assertThat(input).doesNotContain("999.0000", "Another user's merchant", evidence);
+            if (round.get() == 2) {
+                var args = new java.util.HashMap<String, String>(filters);
+                args.put("merchant", "Local market");
+                args.put("sortBy", "RECENT");
+                return agentCall("find_transactions", "evidence_call", args);
+            }
+            assertThat(input).contains("evidence_call", "Local market").doesNotContain(evidence);
+            return json.valueToTree(Map.of("output", List.of(Map.of("type", "message", "content", List.of(Map.of(
+                    "type", "output_text", "text", json.writeValueAsString(Map.of(
+                            "answer", "You spent INR 125 and USD 40 in June. The market charge was INR 125.",
+                            "sourceRefs", List.of("S1", "S2", "S999")))))))));
+        });
+
+        mvc.perform(post("/api/v1/copilot/chat").header("Authorization", "Bearer " + owner)
+                        .contentType("application/json").content(json.writeValueAsBytes(payload)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.answer").value("You spent INR 125 and USD 40 in June. The market charge was INR 125."))
+                .andExpect(jsonPath("$.data.sources.length()").value(2))
+                .andExpect(jsonPath("$.data.sources[1].path").value("/transactions?evidence=" + evidence));
+    }
+
+    private JsonNode agentCall(String name, String id, Map<String, String> arguments) throws Exception {
+        return json.valueToTree(Map.of("output", List.of(Map.of("type", "function_call", "call_id", id,
+                "name", name, "arguments", json.writeValueAsString(arguments)))));
+    }
 
     @Test
     void copilotTotalsAndEvidenceOnlyIncludeTheSignedInUsersExpenses() throws Exception {

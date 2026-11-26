@@ -31,17 +31,19 @@
   to a posted transaction so it drops out of upcoming commitments.
 - **Spending brief** — Compare spending across periods by currency, review
   possible monthly charges and price increases, and dismiss findings after review.
-- **Copilot** — Review spending by currency, compare months, and open the
-  transactions behind the recent-expenses view. The built-in prompts work
-  without an AI provider.
+- **Copilot** — Ask conversational questions about spending, income, account
+  balances, budget progress, savings goals, and upcoming commitments. Follow
+  up in the same chat and open the sources behind an answer. Spending
+  shortcuts work without an AI provider.
 
-### Optional AI questions
+### Enable conversational Copilot
 
-Set `COPILOT_OPENAI_API_KEY` and `COPILOT_OPENAI_MODEL` in the backend
-process environment to enable free-text questions. Select a Responses API
-model that supports structured outputs. The web app asks permission before
-sending question text. The provider classifies the question, and FinSight
-displays the amounts and evidence from its own database.
+Set `COPILOT_OPENAI_API_KEY` and `COPILOT_OPENAI_MODEL` in the backend process
+environment, then restart the backend. Choose a Responses API model with
+function calling and structured outputs. The application asks for consent
+before sharing the chat and the financial data required to answer it. Chat
+history stays in the current page session. Copilot can read the signed-in
+user's finance data through its tools and has no ledger-write tools.
 
 ---
 

@@ -39,3 +39,47 @@ it('uses the selected month and links recent expenses to their transaction detai
     get.mockRestore();
   }
 });
+
+it('requires consent and passes the conversation into a follow-up', async () => {
+  const get = vi.spyOn(api, 'get').mockImplementation(async path => ({
+    data: { data: path === '/copilot/availability' ? true : { current: [], previous: [], evidence: [] } },
+  }));
+  const post = vi.spyOn(api, 'post')
+    .mockResolvedValueOnce({ data: { data: {
+      answer: 'You spent INR 500.', sources: [{ id: 'S1', label: 'Grocery transaction', path: '/transactions?evidence=test-id' }],
+    } } })
+    .mockResolvedValueOnce({ data: { data: { answer: 'That was the only grocery transaction.', sources: [] } } });
+  try {
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <MemoryRouter initialEntries={['/copilot?month=2026-11']}>
+          <CopilotPage />
+        </MemoryRouter>
+      </QueryClientProvider>
+    );
+
+    fireEvent.change(await screen.findByLabelText('Ask a question'), { target: { value: 'What did I spend?' } });
+    expect(screen.getByRole('button', { name: 'Send' })).toBeDisabled();
+    fireEvent.click(screen.getByRole('checkbox', { name: /Allow Copilot to send/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'Send' }));
+    expect(await screen.findByRole('link', { name: 'Grocery transaction' }))
+      .toHaveAttribute('href', '/transactions?evidence=test-id');
+
+    fireEvent.change(screen.getByLabelText('Ask a follow-up'), { target: { value: 'Was that all?' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Send' }));
+    expect(await screen.findByText(/That was the only grocery transaction/)).toBeInTheDocument();
+    expect(post).toHaveBeenLastCalledWith('/copilot/chat', expect.objectContaining({
+      question: 'Was that all?', month: '2026-11',
+      history: [
+        { role: 'user', content: 'What did I spend?' },
+        { role: 'assistant', content: 'You spent INR 500.' },
+      ],
+    }), expect.objectContaining({ signal: expect.any(AbortSignal) }));
+
+    fireEvent.click(screen.getByRole('button', { name: 'New chat' }));
+    expect(screen.queryByText(/That was the only grocery transaction/)).not.toBeInTheDocument();
+  } finally {
+    get.mockRestore();
+    post.mockRestore();
+  }
+});

@@ -15,7 +15,7 @@ import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.UUID;
 
-final class PlanningModels {
+public final class PlanningModels {
 
     private PlanningModels() {}
 
@@ -49,14 +49,14 @@ final class PlanningModels {
 
     record PostingInput(@NotNull UUID transactionId) {}
 
-    record Budget(UUID id, UUID categoryId, String categoryName, String currency, BigDecimal amount, BigDecimal spent) {}
-    record Goal(UUID id, String name, String currency, BigDecimal targetAmount, BigDecimal savedAmount, LocalDate targetDate) {}
+    public record Budget(UUID id, UUID categoryId, String categoryName, String currency, BigDecimal amount, BigDecimal spent) {}
+    public record Goal(UUID id, String name, String currency, BigDecimal targetAmount, BigDecimal savedAmount, LocalDate targetDate) {}
     record Commitment(UUID id, String name, UUID accountId, String accountName, String currency,
                       TransactionDirection direction, BigDecimal amount, Frequency frequency, LocalDate firstDate,
                       boolean active, boolean accountActive) {}
-    record Occurrence(UUID commitmentId, String name, String currency, TransactionDirection direction, BigDecimal amount,
+    public record Occurrence(UUID commitmentId, String name, String currency, TransactionDirection direction, BigDecimal amount,
                       LocalDate dueDate, UUID transactionId) {}
     record Candidate(UUID id, String description, LocalDate date, BigDecimal amount) {}
-    record Overview(YearMonth month, LocalDate today, LocalDate through, List<Budget> budgets, List<Goal> goals,
+    public record Overview(YearMonth month, LocalDate today, LocalDate through, List<Budget> budgets, List<Goal> goals,
                     List<Commitment> commitments, List<Occurrence> occurrences) {}
 }
