@@ -31,6 +31,8 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -106,6 +108,21 @@ class FinSightApplicationTests {
                 .andExpect(jsonPath("$.data.answer").value("You spent INR 125 and USD 40 in June. The market charge was INR 125."))
                 .andExpect(jsonPath("$.data.sources.length()").value(2))
                 .andExpect(jsonPath("$.data.sources[1].path").value("/transactions?evidence=" + evidence));
+    }
+
+    @Test
+    void copilotDoesNotSendAConversationWhenConsentNamesADifferentProvider() throws Exception {
+        String owner = register("agent-provider-consent@example.test");
+        when(copilotModel.providerName()).thenReturn("Groq");
+
+        mvc.perform(get("/api/v1/copilot/status").header("Authorization", "Bearer " + owner))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.data.provider").value("Groq"));
+        mvc.perform(post("/api/v1/copilot/chat").header("Authorization", "Bearer " + owner)
+                        .contentType("application/json").content(json.writeValueAsBytes(Map.of(
+                                "question", "Check this test", "consent", true, "provider", "OpenAI"))))
+                .andExpect(status().isConflict());
+
+        verify(copilotModel, never()).respond(anyMap());
     }
 
     private JsonNode agentCall(String name, String id, Map<String, String> arguments) throws Exception {

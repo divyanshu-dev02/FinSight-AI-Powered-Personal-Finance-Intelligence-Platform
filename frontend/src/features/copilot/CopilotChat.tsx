@@ -4,6 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import { api, type ApiResponse } from '@/lib/api';
 
 type Source = { id: string; label: string; path: string };
+type ChatStatus = { available: boolean; provider: string };
 type Reply = { answer: string; sources: Source[] };
 type Turn = Reply & { question: string };
 
@@ -15,11 +16,13 @@ const suggestions = [
 
 export function CopilotChat({ month, comparable }: { month: string; comparable: boolean }) {
   const availability = useQuery({
-    queryKey: ['copilot-availability'],
-    queryFn: async ({ signal }) => (await api.get<ApiResponse<boolean>>('/copilot/availability', { signal })).data.data,
+    queryKey: ['copilot-status'],
+    queryFn: async ({ signal }) => (await api.get<ApiResponse<ChatStatus>>('/copilot/status', { signal })).data.data,
   });
   const [input, setInput] = useState('');
-  const [consent, setConsent] = useState(false);
+  const [consentedProvider, setConsentedProvider] = useState<string>();
+  const provider = availability.data?.provider;
+  const consent = !!provider && consentedProvider === provider;
   const [turns, setTurns] = useState<Turn[]>([]);
   const [pending, setPending] = useState<string>();
   const [error, setError] = useState<string>();
@@ -50,7 +53,7 @@ export function CopilotChat({ month, comparable }: { month: string; comparable: 
         { role: 'assistant', content: turn.answer },
       ]);
       const { data } = await api.post<ApiResponse<Reply>>('/copilot/chat', {
-        question, consent, month, comparable, history,
+        question, consent, month, comparable, provider, history,
       }, { signal: request.signal });
       if (!request.signal.aborted) {
         setTurns(current => [...current, { question, ...data.data }]);
@@ -79,8 +82,8 @@ export function CopilotChat({ month, comparable }: { month: string; comparable: 
       {availability.isError && <p role="alert" className="text-sm text-slate-700">
         Could not check AI chat availability. <button type="button" className="text-blue-700 underline" onClick={() => void availability.refetch()}>Retry</button>
       </p>}
-      {availability.data === false && <p className="text-sm text-slate-700">AI chat is unavailable on this server. You can still use the spending shortcuts below.</p>}
-      {availability.data && (
+      {availability.data?.available === false && <p className="text-sm text-slate-700">AI chat is unavailable on this server. You can still use the spending shortcuts below.</p>}
+      {availability.data?.available && (
         <>
           {!turns.length && !pending && (
             <div className="flex flex-wrap gap-2">
@@ -123,8 +126,8 @@ export function CopilotChat({ month, comparable }: { month: string; comparable: 
                 className="min-w-0 resize-y rounded-lg border border-slate-300 px-3 py-2" />
             </label>
             <label className="flex items-start gap-2 text-sm text-slate-700">
-              <input type="checkbox" checked={consent} disabled={!!pending} onChange={event => setConsent(event.target.checked)} />
-              Allow Copilot to send this chat and the financial data it needs to OpenAI.
+              <input type="checkbox" checked={consent} disabled={!!pending} onChange={event => setConsentedProvider(event.target.checked ? provider : undefined)} />
+              Allow Copilot to send this chat and the financial data it needs to {provider}.
             </label>
             {error && <p role="alert" className="text-sm text-red-700">{error}</p>}
             <button type="submit" disabled={!consent || !input.trim() || !!pending}

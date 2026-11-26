@@ -44,6 +44,13 @@ public class CopilotController {
         return ApiResponse.success(agent.isAvailable());
     }
 
+    @GetMapping("/status")
+    ApiResponse<ChatStatus> status() {
+        return ApiResponse.success(new ChatStatus(agent.isAvailable(), agent.providerName()));
+    }
+
+    record ChatStatus(boolean available, String provider) {}
+
     @PostMapping("/chat")
     ApiResponse<CopilotAgent.Answer> chat(@Valid @RequestBody CopilotAgent.Request request, Authentication authentication) {
         return ApiResponse.success(agent.answer(users.findEntityByEmail(authentication.getName()), request));

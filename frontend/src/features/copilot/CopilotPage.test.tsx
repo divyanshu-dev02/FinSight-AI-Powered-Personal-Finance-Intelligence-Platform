@@ -8,7 +8,7 @@ import { CopilotPage } from './CopilotPage';
 it('uses the selected month and links recent expenses to their transaction details', async () => {
   const get = vi.spyOn(api, 'get').mockImplementation(async (path) => ({
     data: {
-      data: path === '/copilot/availability' ? false : {
+      data: path === '/copilot/status' ? { available: false, provider: 'OpenAI' } : {
         month: '2026-11',
         previousMonth: '2026-10',
         current: [{ currency: 'INR', amount: 500 }],
@@ -42,7 +42,7 @@ it('uses the selected month and links recent expenses to their transaction detai
 
 it('requires consent and passes the conversation into a follow-up', async () => {
   const get = vi.spyOn(api, 'get').mockImplementation(async path => ({
-    data: { data: path === '/copilot/availability' ? true : { current: [], previous: [], evidence: [] } },
+    data: { data: path === '/copilot/status' ? { available: true, provider: 'Groq' } : { current: [], previous: [], evidence: [] } },
   }));
   const post = vi.spyOn(api, 'post')
     .mockResolvedValueOnce({ data: { data: {
@@ -69,7 +69,7 @@ it('requires consent and passes the conversation into a follow-up', async () => 
     fireEvent.click(screen.getByRole('button', { name: 'Send' }));
     expect(await screen.findByText(/That was the only grocery transaction/)).toBeInTheDocument();
     expect(post).toHaveBeenLastCalledWith('/copilot/chat', expect.objectContaining({
-      question: 'Was that all?', month: '2026-11',
+      question: 'Was that all?', month: '2026-11', provider: 'Groq',
       history: [
         { role: 'user', content: 'What did I spend?' },
         { role: 'assistant', content: 'You spent INR 500.' },

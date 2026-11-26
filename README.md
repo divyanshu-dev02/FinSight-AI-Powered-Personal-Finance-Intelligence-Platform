@@ -38,14 +38,18 @@
 
 ### Enable conversational Copilot
 
-Set `COPILOT_OPENAI_API_KEY` and `COPILOT_OPENAI_MODEL` in the backend process
-environment, then restart the backend. For local development, `make backend-run`
-also reads those properties from the ignored `.env.copilot` file in the repository
-root. Keep the file private and use one `NAME=value` per line. Choose a Responses API model with
-function calling and structured outputs. The application asks for consent
-before sharing the chat and the financial data required to answer it. Chat
-history stays in the current page session. Copilot can read the signed-in
-user's finance data through its tools and has no ledger-write tools.
+Set the provider and credentials in the backend environment, then restart it.
+Local development via `make backend-run` also reads an ignored `.env.copilot`
+file at the repository root. Use one `NAME=value` per line.
+
+- **Groq** — Set `COPILOT_PROVIDER=groq` and `COPILOT_GROQ_API_KEY`.
+  You can override the default `COPILOT_GROQ_MODEL=qwen/qwen3.8-27b`.
+- **OpenAI** — Set `COPILOT_PROVIDER=openai`, `COPILOT_OPENAI_API_KEY`,
+  and `COPILOT_OPENAI_MODEL`.
+
+The app asks for consent before sharing the chat and the financial data
+required by the selected provider. Chat history stays in the current page
+session, and the finance tools are read-only.
 
 ---
 
@@ -57,7 +61,7 @@ user's finance data through its tools and has no ledger-write tools.
 | **Frontend**     | React 19, TypeScript 5, Vite, TailwindCSS          |
 | **Database**     | PostgreSQL 16                                      |
 | **Cache**        | Redis 7                                            |
-| **AI**           | OpenAI Responses API (optional)         |
+| **AI**           | Groq or OpenAI Responses API (optional)         |
 | **Object Store** | S3Mock (optional local S3 API)                               |
 | **Email**        | Mailpit (local) / SMTP (production)                |
 | **CI/CD**        | GitHub Actions                                     |

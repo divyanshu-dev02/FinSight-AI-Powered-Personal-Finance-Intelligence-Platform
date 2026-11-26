@@ -6,5 +6,6 @@ import java.util.Map;
 
 public interface CopilotModel {
     boolean isAvailable();
+    default String providerName() { return "OpenAI"; }
     JsonNode respond(Map<String, Object> request);
 }

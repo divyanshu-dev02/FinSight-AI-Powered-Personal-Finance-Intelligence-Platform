@@ -68,7 +68,16 @@ class CopilotAgent {
         return model.isAvailable();
     }
 
+    String providerName() {
+        String provider = model.providerName();
+        return provider == null ? "OpenAI" : provider;
+    }
+
     Answer answer(User user, Request request) {
+        String provider = providerName();
+        if (!provider.equals(Objects.requireNonNullElse(request.provider(), "OpenAI"))) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "The chat provider changed. Refresh and accept the updated consent.");
+        }
         if (!isAvailable()) {
             throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "AI chat is not configured.");
         }
@@ -203,7 +212,7 @@ class CopilotAgent {
     }
 
     record Request(@NotBlank @Size(max = 1_800) String question, @AssertTrue boolean consent, YearMonth month,
-                   boolean comparable, @Size(max = 12) List<@NotNull @Valid Message> history) {}
+                   boolean comparable, @Size(max = 20) String provider, @Size(max = 12) List<@NotNull @Valid Message> history) {}
 
     record Message(@NotBlank @Pattern(regexp = "user|assistant") String role,
                    @NotBlank @Size(max = MAX_ANSWER_LENGTH) String content) {}
