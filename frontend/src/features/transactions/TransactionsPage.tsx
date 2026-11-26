@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -48,6 +49,18 @@ interface PaginatedData<T> {
 }
 
 export function TransactionsPage() {
+  const [params] = useSearchParams();
+  const evidenceId = params.get('evidence');
+  const evidence = useQuery({
+    queryKey: ['transaction-evidence', evidenceId],
+    enabled: !!evidenceId,
+    queryFn: async ({ signal }) => {
+      const response = await api.get<ApiResponse<Transaction>>(
+        `/transactions/${encodeURIComponent(evidenceId ?? '')}`, { signal }
+      );
+      return response.data.data;
+    },
+  });
   const queryClient = useQueryClient();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isTransferModalOpen, setIsTransferModalOpen] = useState(false);
@@ -220,6 +233,25 @@ export function TransactionsPage() {
           (t.categoryName && t.categoryName.toLowerCase().includes(searchTerm.toLowerCase()))
       )
     : rawTransactions;
+
+  if (evidenceId) {
+    const transaction = evidence.data;
+    return (
+      <section className="mx-auto max-w-2xl space-y-3 rounded-2xl border border-slate-200 bg-white p-5">
+        <h2 className="text-lg font-semibold">Transaction details</h2>
+        {evidence.isPending && <LoadingSpinner />}
+        {evidence.isError && <p role="alert">This transaction is unavailable.</p>}
+        {transaction && (
+          <>
+            <p>{transaction.merchant || transaction.description || transaction.accountName}</p>
+            <p>{formatDate(transaction.transactionDate)} · {formatCurrency(transaction.amount, transaction.currency)}</p>
+            <p>{transaction.accountName}{transaction.categoryName && ` · ${transaction.categoryName}`}</p>
+          </>
+        )}
+        <Link to="/transactions" className="text-blue-700 underline">All transactions</Link>
+      </section>
+    );
+  }
 
   return (
     <div className="space-y-6">

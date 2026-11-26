@@ -6,7 +6,7 @@
 
 [![Java](https://img.shields.io/badge/Java-21-ED8B00?style=for-the-badge&logo=openjdk&logoColor=white)](https://openjdk.org/)
 [![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.x-6DB33F?style=for-the-badge&logo=springboot&logoColor=white)](https://spring.io/projects/spring-boot)
-[![React](https://img.shields.io/badge/React-18-61DAFB?style=for-the-badge&logo=react&logoColor=black)](https://react.dev/)
+[![React](https://img.shields.io/badge/React-19-61DAFB?style=for-the-badge&logo=react&logoColor=black)](https://react.dev/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?style=for-the-badge&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-4169E1?style=for-the-badge&logo=postgresql&logoColor=white)](https://www.postgresql.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow?style=for-the-badge)](LICENSE)
@@ -17,17 +17,22 @@
 
 ---
 
-## ✨ Features
+## Features
 
-- **📊 Smart Dashboard** — Real-time overview of net worth, cash flow, and spending trends.
-- **🏦 Multi-Account Management** — Connect and manage bank accounts, credit cards, investments, and crypto wallets in one place.
-- **📥 Transaction Import** — Upload CSV/OFX/QFX files or pull transactions via bank integrations.
-- **🏷️ Auto-Categorization** — AI-powered transaction categorization that learns your habits.
-- **💡 AI Insights** — Natural-language spending summaries, anomaly detection, and saving recommendations driven by LLMs (OpenAI, Anthropic, or Google AI).
-- **📈 Budgets & Goals** — Set monthly budgets per category and track progress toward financial goals.
-- **🔔 Alerts & Notifications** — Configurable alerts for unusual spending, bill reminders, and budget breaches.
-- **📑 Reports & Export** — Generate detailed PDF/CSV reports for any date range.
-- **🔒 Security First** — JWT authentication, AES-256 data encryption at rest, and role-based access control.
+- **Dashboard** — Account balances, cash flow, and spending by category.
+- **Accounts and transactions** — Manage accounts, record transfers, and export transactions as CSV.
+- **Statement imports** — Preview and import CSV, Excel, and PDF statements.
+- **Copilot** — Review spending by currency, compare months, and open the
+  transactions behind the recent-expenses view. The built-in prompts work
+  without an AI provider.
+
+### Optional AI questions
+
+Set `COPILOT_OPENAI_API_KEY` and `COPILOT_OPENAI_MODEL` in the backend
+process environment to enable free-text questions. Select a Responses API
+model that supports structured outputs. The web app asks permission before
+sending question text. The provider classifies the question, and FinSight
+displays the amounts and evidence from its own database.
 
 ---
 
@@ -36,11 +41,11 @@
 | Layer            | Technology                                         |
 | ---------------- | -------------------------------------------------- |
 | **Backend**      | Java 21, Spring Boot 3, Spring Security, Spring Data JPA |
-| **Frontend**     | React 18, TypeScript 5, Vite, TailwindCSS          |
+| **Frontend**     | React 19, TypeScript 5, Vite, TailwindCSS          |
 | **Database**     | PostgreSQL 16                                      |
 | **Cache**        | Redis 7                                            |
-| **AI**           | OpenAI / Anthropic / Google AI (pluggable)         |
-| **Object Store** | MinIO (S3-compatible)                               |
+| **AI**           | OpenAI Responses API (optional)         |
+| **Object Store** | S3Mock (optional local S3 API)                               |
 | **Email**        | Mailpit (local) / SMTP (production)                |
 | **CI/CD**        | GitHub Actions                                     |
 
@@ -62,15 +67,16 @@
 ### 1. Clone & configure
 
 ```bash
-git clone https://github.com/your-org/finsight.git
-cd finsight
+git clone https://github.com/divyanshu-dev02/FinSight-AI-Powered-Personal-Finance-Intelligence-Platform.git
+cd FinSight-AI-Powered-Personal-Finance-Intelligence-Platform
 cp .env.example .env          # edit .env with your API keys
 ```
 
 ### 2. Start infrastructure
 
 ```bash
-make dev-up                   # starts Postgres, Redis, MinIO, Mailpit
+make dev-up                   # starts Postgres, Redis, Mailpit
+docker compose --profile storage up -d s3mock  # optional S3-compatible storage
 ```
 
 ### 3. Run the backend
@@ -93,7 +99,7 @@ make frontend-dev             # Vite dev server on http://localhost:5173
 | Frontend       | http://localhost:5173         |
 | Backend API    | http://localhost:8080/api     |
 | Mailpit UI     | http://localhost:8025         |
-| MinIO Console  | http://localhost:9001         |
+| S3Mock API     | http://localhost:9000 (optional) |
 
 ---
 
@@ -147,11 +153,11 @@ make clean
 ## 🧪 Testing
 
 ```bash
-# Backend tests (JUnit 5 + Testcontainers)
+# Backend tests (Docker must be running for isolated Postgres)
 make backend-test
 
 # Frontend tests (Vitest)
-make frontend-test
+cd frontend && npm run test:run
 ```
 
 CI runs automatically on every push and pull request to `main` via GitHub Actions.

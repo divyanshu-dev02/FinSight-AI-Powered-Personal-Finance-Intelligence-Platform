@@ -358,6 +358,9 @@ export function DashboardPage() {
             <div className="flex items-center gap-2">
               <span className="text-base">📊</span>
               <h3 className="text-base font-bold text-gray-900">Spending by Category</h3>
+              <Link to={`/copilot?month=${selectedMonth}`} className="text-sm font-medium text-blue-700 underline">
+                Explore spending in Copilot
+              </Link>
             </div>
             <span className="text-xs text-gray-500 font-semibold">{formatMonthTitle(selectedMonth)}</span>
           </div>

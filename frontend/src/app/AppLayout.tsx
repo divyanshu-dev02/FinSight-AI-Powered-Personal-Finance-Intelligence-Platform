@@ -5,9 +5,7 @@ const navItems = [
   { label: 'Dashboard', path: '/dashboard', icon: '📊' },
   { label: 'Accounts', path: '/accounts', icon: '🏦' },
   { label: 'Transactions', path: '/transactions', icon: '💸' },
-  { label: 'Budgets', path: '/budgets', icon: '📋' },
-  { label: 'Goals', path: '/goals', icon: '🎯' },
-  { label: 'Insights', path: '/insights', icon: '💡' },
+  { label: 'Copilot', path: '/copilot', icon: '💡' },
 ];
 
 export function AppLayout() {
@@ -46,7 +44,7 @@ export function AppLayout() {
       </aside>
 
       {/* Main content */}
-      <div className="flex flex-1 flex-col">
+      <div className="flex min-w-0 flex-1 flex-col">
         {/* Top bar */}
         <header className="flex h-16 items-center justify-between border-b border-gray-200/80 bg-white px-6 shadow-2xs">
           <h1 className="text-lg font-bold text-gray-800">
@@ -67,6 +65,19 @@ export function AppLayout() {
             </button>
           </div>
         </header>
+
+        <nav aria-label="Main navigation" className="flex flex-wrap gap-1 border-b border-slate-200 bg-white px-2 lg:hidden">
+          {navItems.map(item => (
+            <Link
+              key={item.path}
+              to={item.path}
+              aria-current={location.pathname === item.path ? 'page' : undefined}
+              className="rounded px-2 py-3 text-sm text-slate-700 aria-[current=page]:font-semibold aria-[current=page]:text-blue-700"
+            >
+              {item.label}
+            </Link>
+          ))}
+        </nav>
 
         {/* Page content */}
         <main className="flex-1 overflow-auto p-6 md:p-8">

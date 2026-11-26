@@ -1,9 +1,4 @@
 spring:
-  datasource:
-    url: jdbc:postgresql://localhost:5432/finsight
-    username: finsight
-    password: finsight_secure_pass_2026
-    driver-class-name: org.postgresql.Driver
   jpa:
     hibernate:
       ddl-auto: none

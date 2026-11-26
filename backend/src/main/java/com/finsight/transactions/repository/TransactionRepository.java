@@ -59,6 +59,25 @@ public interface TransactionRepository extends JpaRepository<Transaction, UUID> 
             @Param("startDate") LocalDate startDate,
             @Param("endDate") LocalDate endDate);
 
+    interface CurrencyTotal {
+        String getCurrency();
+        BigDecimal getAmount();
+    }
+
+    String EXPENSE_SCOPE = """
+            FROM Transaction t
+            WHERE t.user = :user AND t.direction = com.finsight.transactions.entity.TransactionDirection.DEBIT
+              AND t.transactionDate BETWEEN :start AND :end
+              AND t.account.active = true AND t.isTransfer = false
+            """;
+
+    @Query("SELECT t.currency AS currency, SUM(t.amount) AS amount " + EXPENSE_SCOPE
+            + " GROUP BY t.currency ORDER BY t.currency")
+    List<CurrencyTotal> spendingByCurrency(User user, LocalDate start, LocalDate end);
+
+    @Query("SELECT t " + EXPENSE_SCOPE + " ORDER BY t.transactionDate DESC, t.id")
+    List<Transaction> recentExpenses(User user, LocalDate start, LocalDate end, Pageable pageable);
+
     boolean existsByExternalFingerprintAndUser(String externalFingerprint, User user);
 }
 
