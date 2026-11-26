@@ -86,7 +86,8 @@ session, and the finance tools are read-only.
 ```bash
 git clone https://github.com/divyanshu-dev02/FinSight-AI-Powered-Personal-Finance-Intelligence-Platform.git
 cd FinSight-AI-Powered-Personal-Finance-Intelligence-Platform
-cp .env.example .env          # edit .env with your API keys
+cp .env.example .env
+# Set a private DB_PASSWORD and a random JWT_SECRET (at least 32 bytes) in .env.
 ```
 
 ### 2. Start infrastructure
@@ -124,9 +125,11 @@ make frontend-dev             # Vite dev server on http://localhost:5173
 
 After the local backend applies its database migrations, run `make demo-seed`
 to populate the built-in demo account with synthetic transactions, budgets,
-savings goals, and recurring commitments. The login page can autofill the demo
-credentials. The seed targets the local Docker database and can be rerun without
-duplicating fixtures or replacing existing records.
+savings goals, and recurring commitments. To sign in as
+`divyanshu@finsight.local`, set a private `DEMO_PASSWORD` of 16–72 UTF-8 bytes
+in the ignored `.env.local` file and restart the local backend. The demo login
+is disabled outside the local setup. The seed targets the local Docker
+database and can be rerun without duplicating or replacing existing records.
 
 Try asking Copilot, “Compare spending in Demo Everyday this month and last month.
 Which expenses explain the biggest difference?”

@@ -1,6 +1,9 @@
 spring:
   config:
-    import: optional:file:../.env.copilot[.properties]
+    import:
+      - optional:file:../.env[.properties]
+      - optional:file:../.env.copilot[.properties]
+      - optional:file:../.env.local[.properties]
   jpa:
     show-sql: true
     properties:

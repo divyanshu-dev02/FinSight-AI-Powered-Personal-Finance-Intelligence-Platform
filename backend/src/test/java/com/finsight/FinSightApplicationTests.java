@@ -9,6 +9,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.mock.web.MockMultipartFile;
+import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
@@ -49,6 +50,36 @@ class FinSightApplicationTests {
 
     @Autowired
     private ObjectMapper json;
+
+    @Autowired
+    private JdbcClient jdbc;
+
+    @Test
+    void suspendedAccountsCannotSignInRefreshOrUseAnExistingAccessToken() throws Exception {
+        String email = "suspended-session@example.test";
+        String password = "integration-test-password";
+        var response = mvc.perform(post("/api/v1/auth/register").contentType("application/json")
+                        .content(json.writeValueAsBytes(Map.of("email", email, "password", password, "displayName", "Test user"))))
+                .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
+        JsonNode tokens = json.readTree(response).path("data");
+        jdbc.sql("UPDATE users SET account_status = 'SUSPENDED' WHERE email = :email").param("email", email).update();
+
+        mvc.perform(post("/api/v1/auth/login").contentType("application/json")
+                        .content(json.writeValueAsBytes(Map.of("email", email, "password", password))))
+                .andExpect(status().isUnauthorized());
+        mvc.perform(post("/api/v1/auth/refresh").contentType("application/json")
+                        .content(json.writeValueAsBytes(Map.of("refreshToken", tokens.path("refreshToken").asText()))))
+                .andExpect(status().isUnauthorized());
+        mvc.perform(get("/api/v1/auth/me").header("Authorization", "Bearer " + tokens.path("accessToken").asText()))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void legacyDemoIsDisabledWithoutLocalConfiguration() {
+        String status = jdbc.sql("SELECT account_status FROM users WHERE email = :email")
+                .param("email", "divyanshu@finsight.local").query(String.class).single();
+        assertThat(status).isEqualTo("SUSPENDED");
+    }
 
     @MockitoBean
     private CopilotModel copilotModel;

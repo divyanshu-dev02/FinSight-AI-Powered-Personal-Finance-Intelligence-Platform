@@ -21,14 +21,9 @@ export function LoginPage() {
   const {
     register,
     handleSubmit,
-    setValue,
     formState: { errors, isSubmitting },
   } = useForm<LoginFormData>({
     resolver: zodResolver(loginSchema),
-    defaultValues: {
-      email: 'divyanshu@finsight.local',
-      password: 'SecurePassword123!',
-    },
   });
 
   const onSubmit = async (data: LoginFormData) => {
@@ -40,15 +35,9 @@ export function LoginPage() {
       const error = err as { response?: { data?: { error?: { message?: string } } } };
       setErrorMessage(
         error.response?.data?.error?.message ||
-        'Invalid email or password. If you are on a new cloud deployment, click Auto-fill Credentials or Register a new account.'
+        'Invalid email or password.'
       );
     }
-  };
-
-  const handleAutoFill = () => {
-    setValue('email', 'divyanshu@finsight.local', { shouldValidate: true });
-    setValue('password', 'SecurePassword123!', { shouldValidate: true });
-    setErrorMessage(null);
   };
 
   return (
@@ -68,27 +57,6 @@ export function LoginPage() {
             <p className="text-xs text-red-700 leading-relaxed">{errorMessage}</p>
           </div>
         )}
-
-        {/* Demo Credentials Quick-Fill Card */}
-        <div className="rounded-xl bg-blue-50/80 p-4 border border-blue-200 text-xs text-blue-900 space-y-2">
-          <div className="font-semibold flex items-center justify-between">
-            <span className="flex items-center gap-1.5 font-bold text-blue-950">
-              <span>🔑</span>
-              <span>Default Demo Account</span>
-            </span>
-            <button
-              type="button"
-              onClick={handleAutoFill}
-              className="font-bold text-blue-700 hover:text-blue-900 bg-blue-100/80 hover:bg-blue-200/80 px-2.5 py-1 rounded-lg transition-colors cursor-pointer"
-            >
-              Auto-fill Credentials
-            </button>
-          </div>
-          <div className="font-mono text-[11px] text-blue-800 space-y-0.5 bg-white/70 p-2.5 rounded-lg border border-blue-100">
-            <div>Email: <span className="font-bold text-gray-900">divyanshu@finsight.local</span></div>
-            <div>Password: <span className="font-bold text-gray-900">SecurePassword123!</span></div>
-          </div>
-        </div>
 
         <form className="space-y-4" onSubmit={handleSubmit(onSubmit)}>
           <div>

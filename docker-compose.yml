@@ -5,11 +5,11 @@ services:
     container_name: finsight-postgres
     restart: unless-stopped
     ports:
-      - "${DB_PORT:-5432}:5432"
+      - "127.0.0.1:${DB_PORT:-5432}:5432"
     environment:
       POSTGRES_DB: ${DB_NAME:-finsight}
       POSTGRES_USER: ${DB_USERNAME:-finsight}
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-finsight_local_password}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in .env}
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:

@@ -4,6 +4,7 @@ import com.finsight.common.exception.BusinessException;
 import com.finsight.identity.dto.*;
 import com.finsight.identity.entity.RefreshToken;
 import com.finsight.identity.entity.User;
+import com.finsight.identity.entity.AccountStatus;
 import com.finsight.identity.repository.RefreshTokenRepository;
 import com.finsight.identity.repository.UserRepository;
 import com.finsight.security.JwtService;
@@ -65,7 +66,7 @@ public class AuthService {
         User user = userRepository.findByEmail(request.email().toLowerCase().trim())
                 .orElseThrow(() -> new BadCredentialsException("Invalid email or password"));
 
-        if (!passwordEncoder.matches(request.password(), user.getPasswordHash())) {
+        if (user.getAccountStatus() != AccountStatus.ACTIVE || !passwordEncoder.matches(request.password(), user.getPasswordHash())) {
             throw new BadCredentialsException("Invalid email or password");
         }
 
@@ -86,11 +87,14 @@ public class AuthService {
             throw new BusinessException("INVALID_REFRESH_TOKEN", "Refresh token is expired or revoked");
         }
 
+        User user = storedToken.getUser();
+        if (user.getAccountStatus() != AccountStatus.ACTIVE) {
+            throw new BadCredentialsException("User account is unavailable");
+        }
+
         // Revoke the old token (rotation)
         storedToken.setRevokedAt(Instant.now());
         refreshTokenRepository.save(storedToken);
-
-        User user = storedToken.getUser();
         return createAuthSession(user);
     }
 

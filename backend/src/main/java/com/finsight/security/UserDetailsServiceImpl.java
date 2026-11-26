@@ -1,6 +1,7 @@
 package com.finsight.security;
 
 import com.finsight.identity.entity.User;
+import com.finsight.identity.entity.AccountStatus;
 import com.finsight.identity.repository.UserRepository;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
@@ -26,6 +27,7 @@ public class UserDetailsServiceImpl implements UserDetailsService {
         return org.springframework.security.core.userdetails.User.builder()
                 .username(user.getEmail())
                 .password(user.getPasswordHash())
+                .disabled(user.getAccountStatus() != AccountStatus.ACTIVE)
                 .authorities(Collections.emptyList())
                 .build();
     }

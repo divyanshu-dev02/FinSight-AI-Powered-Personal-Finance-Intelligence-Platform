@@ -1,4 +1,6 @@
 spring:
+  datasource:
+    password: ""
   jpa:
     hibernate:
       ddl-auto: none

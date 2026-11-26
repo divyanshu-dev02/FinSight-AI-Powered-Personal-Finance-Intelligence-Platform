@@ -5,7 +5,7 @@ spring:
   datasource:
     url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:finsight}
     username: ${DB_USERNAME:finsight}
-    password: ${DB_PASSWORD:finsight_local_password}
+    password: ${DB_PASSWORD}
     driver-class-name: org.postgresql.Driver
 
   jpa:
@@ -41,7 +41,7 @@ server:
     include-stacktrace: never
 
 jwt:
-  secret: ${JWT_SECRET:local-dev-secret-must-be-at-least-256-bits-long-change-in-production}
+  secret: ${JWT_SECRET}
   access-ttl-seconds: ${JWT_ACCESS_TTL_SECONDS:900}
   refresh-ttl-seconds: ${JWT_REFRESH_TTL_SECONDS:2592000}
 
