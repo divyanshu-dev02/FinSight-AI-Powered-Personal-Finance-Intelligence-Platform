@@ -16,6 +16,9 @@ import org.springframework.test.context.ActiveProfiles;
 import org.testcontainers.containers.PostgreSQLContainer;
 
 import java.nio.charset.StandardCharsets;
+import java.time.LocalDate;
+import java.time.YearMonth;
+import java.time.ZoneId;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Executors;
@@ -209,6 +212,85 @@ class FinSightApplicationTests {
         }
     }
 
+    @Test
+    void planningUsesPostedSpendingAndLinksEachTransactionToAtMostOneOccurrence() throws Exception {
+        String owner = register("planning-owner@example.test");
+        String other = register("planning-other@example.test");
+        String inr = account(owner, "INR");
+        String usd = account(owner, "USD");
+        LocalDate today = LocalDate.now(ZoneId.of("Asia/Kolkata"));
+        String month = YearMonth.from(today).toString();
+        String categoryId = "00000000-0000-0000-0000-000000000010";
+        String posted = create("/api/v1/transactions", owner, Map.of(
+                "accountId", inr, "categoryId", categoryId, "amount", 90, "currency", "INR",
+                "direction", "DEBIT", "description", "Groceries", "transactionDate", today.toString()), "id");
+        create("/api/v1/transactions", owner, Map.of(
+                "accountId", usd, "categoryId", categoryId, "amount", 50, "currency", "USD",
+                "direction", "DEBIT", "description", "USD groceries", "transactionDate", today.toString()), "id");
+
+        var budget = Map.of("categoryId", categoryId, "month", month, "currency", "INR", "amount", 300);
+        String budgetId = create("/api/v1/planning/budgets", owner, budget, null);
+        mvc.perform(post("/api/v1/planning/budgets").header("Authorization", "Bearer " + owner)
+                        .contentType("application/json").content(json.writeValueAsBytes(budget)))
+                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.error.code").value("DUPLICATE_BUDGET"));
+        var updatedBudget = Map.of("categoryId", categoryId, "month", month, "currency", "INR", "amount", 250);
+        mvc.perform(put("/api/v1/planning/budgets/" + budgetId).header("Authorization", "Bearer " + owner)
+                        .contentType("application/json").content(json.writeValueAsBytes(updatedBudget)))
+                .andExpect(status().isOk());
+        mvc.perform(put("/api/v1/planning/budgets/" + budgetId).header("Authorization", "Bearer " + other)
+                        .contentType("application/json").content(json.writeValueAsBytes(updatedBudget)))
+                .andExpect(status().isNotFound());
+
+        create("/api/v1/planning/goals", owner,
+                Map.of("name", "Emergency fund", "currency", "INR", "targetAmount", 5000, "savedAmount", 1000), null);
+        var bill = Map.of("name", "Weekly groceries", "accountId", inr, "direction", "DEBIT", "amount", 110,
+                "frequency", "WEEKLY", "firstDate", today.toString(), "active", true);
+        String commitmentId = create("/api/v1/planning/commitments", owner, bill, null);
+        var editedBill = Map.of("name", "Weekly groceries", "accountId", inr, "direction", "DEBIT", "amount", 125,
+                "frequency", "WEEKLY", "firstDate", today.toString(), "active", true);
+        mvc.perform(put("/api/v1/planning/commitments/" + commitmentId).header("Authorization", "Bearer " + owner)
+                        .contentType("application/json").content(json.writeValueAsBytes(editedBill)))
+                .andExpect(status().isOk());
+        String incomeId = create("/api/v1/planning/commitments", owner, Map.of(
+                "name", "Payday", "accountId", inr, "direction", "CREDIT", "amount", 500,
+                "frequency", "MONTHLY", "firstDate", today.plusDays(1).toString(), "active", true), null);
+        assertThat(incomeId).isNotBlank();
+
+        String overview = "/api/v1/planning?month=" + month;
+        mvc.perform(get(overview).header("Authorization", "Bearer " + owner))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.budgets[0].amount").value(250))
+                .andExpect(jsonPath("$.data.budgets[0].spent").value(90))
+                .andExpect(jsonPath("$.data.goals[0].savedAmount").value(1000))
+                .andExpect(jsonPath("$.data.occurrences[0].amount").value(125))
+                .andExpect(jsonPath("$.data.occurrences[0].transactionId").doesNotExist())
+                .andExpect(jsonPath("$.data.occurrences[1].direction").value("CREDIT"));
+
+        String occurrence = "/api/v1/planning/commitments/" + commitmentId + "/occurrences/" + today;
+        mvc.perform(get(occurrence + "/candidates").header("Authorization", "Bearer " + owner))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.data[0].id").value(posted));
+        mvc.perform(get(occurrence + "/candidates").header("Authorization", "Bearer " + other))
+                .andExpect(status().isNotFound());
+
+        byte[] posting = json.writeValueAsBytes(Map.of("transactionId", posted));
+        mvc.perform(put(occurrence + "/posting").header("Authorization", "Bearer " + owner)
+                        .contentType("application/json").content(posting)).andExpect(status().isNoContent());
+        mvc.perform(put(occurrence + "/posting").header("Authorization", "Bearer " + owner)
+                        .contentType("application/json").content(posting)).andExpect(status().isNoContent());
+        String followingWeek = "/api/v1/planning/commitments/" + commitmentId + "/occurrences/" + today.plusWeeks(1);
+        mvc.perform(put(followingWeek + "/posting").header("Authorization", "Bearer " + owner)
+                        .contentType("application/json").content(posting))
+                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.error.code").value("POSTING_ALREADY_LINKED"));
+
+        mvc.perform(get(overview).header("Authorization", "Bearer " + owner))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.occurrences[0].transactionId").value(posted))
+                .andExpect(jsonPath("$.data.budgets[0].spent").value(90));
+        mvc.perform(get(overview).header("Authorization", "Bearer " + other))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.data.budgets").isEmpty())
+                .andExpect(jsonPath("$.data.goals").isEmpty()).andExpect(jsonPath("$.data.commitments").isEmpty());
+    }
+
     private JsonNode preview(String token, String account, String csv) throws Exception {
         var file = new MockMultipartFile("file", "review.csv", "text/csv", csv.getBytes(StandardCharsets.UTF_8));
         String body = mvc.perform(multipart("/api/v1/transactions/import/preview").file(file).param("accountId", account)
@@ -267,7 +349,8 @@ class FinSightApplicationTests {
         }
         String body = mvc.perform(request).andExpect(status().isCreated()).andReturn()
                 .getResponse().getContentAsString();
-        return json.readTree(body).path("data").path(field).asText();
+        JsonNode data = json.readTree(body).path("data");
+        return field == null ? data.asText() : data.path(field).asText();
     }
 
     @TestConfiguration(proxyBeanMethods = false)

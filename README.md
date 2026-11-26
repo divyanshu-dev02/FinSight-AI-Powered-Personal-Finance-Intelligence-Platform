@@ -26,6 +26,9 @@
   merchant rules for future imports. Import history shows saved, skipped, and
   rejected rows. Duplicate skipping is on by default and can be turned off
   for legitimate identical charges.
+- **Planning** — Set monthly budgets by category and currency, track savings
+  goals, and confirm weekly or monthly bills and income. Link an occurrence
+  to a posted transaction so it drops out of upcoming commitments.
 - **Spending brief** — Compare spending across periods by currency, review
   possible monthly charges and price increases, and dismiss findings after review.
 - **Copilot** — Review spending by currency, compare months, and open the

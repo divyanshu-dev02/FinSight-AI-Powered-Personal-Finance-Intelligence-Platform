@@ -7,6 +7,7 @@ import { DashboardPage } from '@/features/dashboard/DashboardPage';
 import { AccountsPage } from '@/features/accounts/AccountsPage';
 import { TransactionsPage } from '@/features/transactions/TransactionsPage';
 import { CopilotPage } from '@/features/copilot/CopilotPage';
+import { PlanningPage } from '@/features/planning/PlanningPage';
 import { AppLayout } from '@/app/AppLayout';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
 
@@ -75,6 +76,7 @@ export function App() {
       >
         <Route index element={<Navigate to="/dashboard" replace />} />
         <Route path="dashboard" element={<DashboardPage />} />
+        <Route path="planning" element={<PlanningPage />} />
         <Route path="copilot" element={<CopilotPage />} />
         <Route path="accounts" element={<AccountsPage />} />
         <Route path="transactions" element={<TransactionsPage />} />

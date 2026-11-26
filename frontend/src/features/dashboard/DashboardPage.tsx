@@ -5,6 +5,7 @@ import { api, ApiResponse } from '@/lib/api';
 import { FinancialSummary, Transaction } from '@/types/finance';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import { Link } from 'react-router-dom';
+import { PlanningSnapshot } from '@/features/planning/PlanningSnapshot';
 import { SpendingBrief } from './SpendingBrief';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
 
@@ -132,7 +133,12 @@ export function DashboardPage() {
         </div>
       </div>
 
-      {user && <SpendingBrief month={selectedMonth} userId={user.id} />}
+      {user && (
+        <>
+          <SpendingBrief month={selectedMonth} userId={user.id} />
+          <PlanningSnapshot month={selectedMonth} userId={user.id} />
+        </>
+      )}
 
       {/* Month Selection Bar & Comparison Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between bg-white px-5 py-3.5 rounded-2xl border border-gray-200 shadow-xs gap-4">
