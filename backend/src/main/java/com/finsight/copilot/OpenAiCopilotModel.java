@@ -51,16 +51,35 @@ class OpenAiCopilotModel implements CopilotModel {
             if (response.statusCode() >= 200 && response.statusCode() < 300) {
                 return json.readTree(response.body());
             }
+            throw responseError(response.statusCode(), json.readTree(response.body()));
         } catch (IOException exception) {
             throw unavailable();
         } catch (InterruptedException exception) {
             Thread.currentThread().interrupt();
             throw unavailable();
         }
-        throw unavailable();
     }
 
-    private ResponseStatusException unavailable() {
+    static ResponseStatusException responseError(int status, JsonNode body) {
+        String code = body == null ? "" : body.path("error").path("code").asText();
+        String type = body == null ? "" : body.path("error").path("type").asText();
+        if (status == 429 && ("credit_balance_exhausted".equals(code) || "insufficient_quota".equals(code)
+                || "insufficient_quota".equals(type))) {
+            return new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE,
+                    "Copilot’s OpenAI project is out of API credits. Update its API billing to resume chat.");
+        }
+        if (status == 429) {
+            return new ResponseStatusException(HttpStatus.TOO_MANY_REQUESTS,
+                    "Copilot has reached the OpenAI rate limit. Try again shortly.");
+        }
+        if (status == 401 || status == 403) {
+            return new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE,
+                    "OpenAI rejected Copilot’s credentials or permissions. Check the backend configuration.");
+        }
+        return unavailable();
+    }
+
+    private static ResponseStatusException unavailable() {
         return new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "Copilot could not reach the AI provider. Try again shortly.");
     }
 }

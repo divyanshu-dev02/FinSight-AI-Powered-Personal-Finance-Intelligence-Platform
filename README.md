@@ -39,7 +39,9 @@
 ### Enable conversational Copilot
 
 Set `COPILOT_OPENAI_API_KEY` and `COPILOT_OPENAI_MODEL` in the backend process
-environment, then restart the backend. Choose a Responses API model with
+environment, then restart the backend. For local development, `make backend-run`
+also reads those properties from the ignored `.env.copilot` file in the repository
+root. Keep the file private and use one `NAME=value` per line. Choose a Responses API model with
 function calling and structured outputs. The application asks for consent
 before sharing the chat and the financial data required to answer it. Chat
 history stays in the current page session. Copilot can read the signed-in
