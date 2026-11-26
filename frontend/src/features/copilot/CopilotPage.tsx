@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { api, ApiResponse } from '@/lib/api';
-import { formatCurrency } from '@/lib/utils';
+import { formatCurrency, formatDate } from '@/lib/utils';
 
 type Total = { currency: string; amount: number };
 type Expense = Total & { id: string; date: string };
@@ -13,6 +13,7 @@ type Spending = {
   previous: Total[];
   evidence: Expense[];
   calculatedAt: string;
+  periods?: { currentStart: string; currentEnd: string; previousStart: string; previousEnd: string };
 };
 
 const questions = [
@@ -27,12 +28,14 @@ export function CopilotPage() {
   const [params, setParams] = useSearchParams();
   const now = new Date();
   const month = params.get('month') ?? `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-  const [question, setQuestion] = useState<Question>(questions[0]);
+  const comparable = params.get('comparison') === 'brief';
+  const [selectedQuestion, setQuestion] = useState<Question>();
+  const question = selectedQuestion ?? (comparable ? questions[1] : questions[0]);
   const { data, isFetching, isError, refetch } = useQuery({
-    queryKey: ['copilot-spending', month],
+    queryKey: ['copilot-spending', month, comparable],
     queryFn: async ({ signal }) => {
       const response = await api.get<ApiResponse<Spending>>('/copilot/spending', {
-        params: { month },
+        params: comparable ? { month, comparable: true } : { month },
         signal,
       });
       return response.data.data;
@@ -133,6 +136,13 @@ export function CopilotPage() {
               ))}
             </ul>
           ) : <p>No posted expenses in {month}.</p>
+        )}
+        {data?.periods && comparable && (
+          <p className="text-sm text-slate-600">
+            {formatDate(data.periods.currentStart)} – {formatDate(data.periods.currentEnd)}
+            {' compared with '}
+            {formatDate(data.periods.previousStart)} – {formatDate(data.periods.previousEnd)}
+          </p>
         )}
         {data && question === questions[1] && (
           currencies.length ? (

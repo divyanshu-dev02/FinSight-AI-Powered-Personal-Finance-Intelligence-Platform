@@ -22,6 +22,8 @@
 - **Dashboard** — Account balances, cash flow, and spending by category.
 - **Accounts and transactions** — Manage accounts, record transfers, and export transactions as CSV.
 - **Statement imports** — Preview and import CSV, Excel, and PDF statements.
+- **Spending brief** — Compare spending across periods by currency, review
+  possible monthly charges and price increases, and dismiss findings after review.
 - **Copilot** — Review spending by currency, compare months, and open the
   transactions behind the recent-expenses view. The built-in prompts work
   without an AI provider.

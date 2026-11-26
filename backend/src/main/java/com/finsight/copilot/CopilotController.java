@@ -1,5 +1,6 @@
 package com.finsight.copilot;
 
+import com.finsight.analytics.service.SpendingPeriods;
 import com.finsight.common.dto.ApiResponse;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.AssertTrue;
@@ -20,6 +21,8 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneId;
 import java.time.YearMonth;
 import java.util.List;
 import java.util.UUID;
@@ -59,22 +62,27 @@ public class CopilotController {
     record Question(@NotBlank @Size(max = 300) String question, @AssertTrue boolean consent) {}
 
     @GetMapping("/spending")
-    ApiResponse<Spending> spending(@RequestParam YearMonth month, Authentication authentication) {
+    ApiResponse<Spending> spending(@RequestParam YearMonth month,
+                                   @RequestParam(defaultValue = "false") boolean comparable,
+                                   Authentication authentication) {
         var user = users.findEntityByEmail(authentication.getName());
         var previousMonth = month.minusMonths(1);
-        var current = transactions.spendingByCurrency(user, month.atDay(1), month.atEndOfMonth()).stream()
+        SpendingPeriods periods = comparable
+                ? SpendingPeriods.comparable(month, LocalDate.now(ZoneId.of(user.getTimeZone())))
+                : SpendingPeriods.fullMonths(month);
+        var current = transactions.spendingByCurrency(user, periods.currentStart(), periods.currentEnd()).stream()
                 .map(total -> new CurrencyTotal(total.getCurrency(), total.getAmount())).toList();
-        var previous = transactions.spendingByCurrency(user, previousMonth.atDay(1), previousMonth.atEndOfMonth()).stream()
+        var previous = transactions.spendingByCurrency(user, periods.previousStart(), periods.previousEnd()).stream()
                 .map(total -> new CurrencyTotal(total.getCurrency(), total.getAmount())).toList();
-        var evidence = transactions.recentExpenses(user, month.atDay(1), month.atEndOfMonth(),
+        var evidence = transactions.recentExpenses(user, periods.currentStart(), periods.currentEnd(),
                 PageRequest.of(0, 5)).stream()
                 .map(t -> new Expense(t.getId(), t.getTransactionDate().toString(), t.getAmount(), t.getCurrency()))
                 .toList();
-        return ApiResponse.success(new Spending(month, previousMonth, current, previous, evidence, Instant.now()));
+        return ApiResponse.success(new Spending(month, previousMonth, current, previous, evidence, Instant.now(), periods));
     }
 
     record Spending(YearMonth month, YearMonth previousMonth, List<CurrencyTotal> current,
-                    List<CurrencyTotal> previous, List<Expense> evidence, Instant calculatedAt) {}
+                    List<CurrencyTotal> previous, List<Expense> evidence, Instant calculatedAt, SpendingPeriods periods) {}
 
     public record CurrencyTotal(String currency, BigDecimal amount) {}
 

@@ -19,6 +19,8 @@ import java.util.Map;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -62,6 +64,68 @@ class FinSightApplicationTests {
 
         mvc.perform(get("/api/v1/transactions/" + evidence).header("Authorization", "Bearer " + other))
                 .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void briefComparesCurrenciesSeparatelyAndDismissesOnlyTheCurrentFinding() throws Exception {
+        String owner = register("brief-owner@example.test");
+        String other = register("brief-other@example.test");
+        String inr = account(owner, "INR");
+        String savings = create("/api/v1/accounts", owner,
+                Map.of("name", "Savings", "type", "BANK_ACCOUNT", "currency", "INR"), "id");
+        String usd = account(owner, "USD");
+        datedExpense(owner, inr, "INR", "Broadband", 100, "2025-03-05");
+        datedExpense(owner, inr, "INR", "Broadband", 100, "2025-04-05");
+        String broadband = datedExpense(owner, inr, "INR", " broadband ", 125, "2025-05-05");
+        datedExpense(owner, inr, "INR", "Streaming", 100, "2025-04-12");
+        datedExpense(owner, inr, "INR", "Streaming", 100, "2025-05-12");
+        datedExpense(owner, usd, "USD", "Books", 25, "2025-04-10");
+        datedExpense(owner, usd, "USD", "Shop", 50, "2025-05-11");
+        datedExpense(other, account(other, "INR"), "INR", "Private expense", 999, "2025-05-05");
+
+        mvc.perform(post("/api/v1/transactions/transfer")
+                        .header("Authorization", "Bearer " + owner).contentType("application/json")
+                        .content(json.writeValueAsBytes(Map.of("sourceAccountId", inr, "destinationAccountId", savings,
+                                "amount", 2_000, "transactionDate", "2025-05-06"))))
+                .andExpect(status().isCreated());
+
+        String path = "/api/v1/dashboard/brief?month=2025-05";
+        String response = mvc.perform(get(path).header("Authorization", "Bearer " + owner))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.periods.currentEnd").value("2025-05-31"))
+                .andExpect(jsonPath("$.data.findings.length()").value(3))
+                .andExpect(jsonPath("$.data.findings[0].kind").value("SPENDING_CHANGE"))
+                .andExpect(jsonPath("$.data.findings[0].currency").value("USD"))
+                .andExpect(jsonPath("$.data.findings[0].previousAmount").value(25))
+                .andExpect(jsonPath("$.data.findings[0].currentAmount").value(50))
+                .andExpect(jsonPath("$.data.findings[1].kind").value("RECURRING_CANDIDATE"))
+                .andExpect(jsonPath("$.data.findings[2].kind").value("RECURRING_INCREASE"))
+                .andExpect(jsonPath("$.data.findings[2].evidence[0].id").value(broadband))
+                .andReturn().getResponse().getContentAsString();
+        String findingId = json.readTree(response).path("data").path("findings").get(0).path("id").asText();
+        String dismissPath = "/api/v1/dashboard/brief/dismissals/" + findingId;
+
+        mvc.perform(put(dismissPath).header("Authorization", "Bearer " + other)).andExpect(status().isNoContent());
+        mvc.perform(get(path).header("Authorization", "Bearer " + owner))
+                .andExpect(jsonPath("$.data.findings[0].id").value(findingId));
+        mvc.perform(put(dismissPath).header("Authorization", "Bearer " + owner)).andExpect(status().isNoContent());
+        mvc.perform(put(dismissPath).header("Authorization", "Bearer " + owner)).andExpect(status().isNoContent());
+        mvc.perform(get(path).header("Authorization", "Bearer " + owner))
+                .andExpect(jsonPath("$.data.findings.length()").value(2));
+
+        datedExpense(owner, usd, "USD", "Shop", 25, "2025-05-20");
+        String updated = mvc.perform(get(path).header("Authorization", "Bearer " + owner))
+                .andExpect(jsonPath("$.data.findings[0].currentAmount").value(75))
+                .andReturn().getResponse().getContentAsString();
+        assertThat(json.readTree(updated).path("data").path("findings").get(0).path("id").asText())
+                .isNotEqualTo(findingId);
+    }
+
+    private String datedExpense(String token, String accountId, String currency, String merchant,
+                                int amount, String date) throws Exception {
+        return create("/api/v1/transactions", token,
+                Map.of("accountId", accountId, "direction", "DEBIT", "currency", currency,
+                        "amount", amount, "description", merchant, "merchant", merchant, "transactionDate", date), "id");
     }
 
     private void importExpense(String token, String account) throws Exception {

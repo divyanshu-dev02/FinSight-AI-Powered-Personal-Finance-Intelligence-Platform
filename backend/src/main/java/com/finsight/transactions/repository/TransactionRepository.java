@@ -78,6 +78,9 @@ public interface TransactionRepository extends JpaRepository<Transaction, UUID> 
     @Query("SELECT t " + EXPENSE_SCOPE + " ORDER BY t.transactionDate DESC, t.id")
     List<Transaction> recentExpenses(User user, LocalDate start, LocalDate end, Pageable pageable);
 
+    @Query("SELECT t " + EXPENSE_SCOPE + " AND t.currency = :currency ORDER BY t.amount DESC, t.id")
+    List<Transaction> largestExpenses(User user, LocalDate start, LocalDate end, String currency, Pageable pageable);
+
     boolean existsByExternalFingerprintAndUser(String externalFingerprint, User user);
 }
 
