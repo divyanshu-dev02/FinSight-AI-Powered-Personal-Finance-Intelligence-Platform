@@ -2,7 +2,7 @@
 # FinSight – Development Makefile
 # ──────────────────────────────────────────────────────────────
 
-.PHONY: dev-up dev-down dev-reset \
+.PHONY: dev-up dev-down dev-reset demo-seed \
         backend-run backend-test backend-build \
         frontend-install frontend-dev frontend-test frontend-build \
         test build clean
@@ -20,6 +20,10 @@ dev-down:
 ## Stop all Docker services and remove volumes (full reset)
 dev-reset:
 	docker compose down -v
+
+## Load synthetic fixtures into the local Docker demo account after migrations
+demo-seed:
+	docker compose exec -T postgres sh -c 'psql -X -v ON_ERROR_STOP=1 -U "$$POSTGRES_USER" -d "$$POSTGRES_DB"' < scripts/seed-demo.sql
 
 # ── Backend (Spring Boot / Maven) ─────────────────────────────
 

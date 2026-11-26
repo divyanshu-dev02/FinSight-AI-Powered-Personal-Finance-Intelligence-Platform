@@ -120,6 +120,17 @@ make frontend-dev             # Vite dev server on http://localhost:5173
 
 ---
 
+## Demo data
+
+After the local backend applies its database migrations, run `make demo-seed`
+to populate the built-in demo account with synthetic transactions, budgets,
+savings goals, and recurring commitments. The login page can autofill the demo
+credentials. The seed targets the local Docker database and can be rerun without
+duplicating fixtures or replacing existing records.
+
+Try asking Copilot, “Compare spending in Demo Everyday this month and last month.
+Which expenses explain the biggest difference?”
+
 ## 📁 Project Structure
 
 ```
