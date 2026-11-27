@@ -146,6 +146,35 @@ Changes to the shared demo ledger and settings are disabled.
 Try asking Copilot, “Compare spending in Demo Everyday this month and last month.
 Which expenses explain the biggest difference?”
 
+## Copilot roadmap
+
+### Phase 1 — Verified ledger answers
+
+Answer common questions about spending, income, budgets, recurring bills, and savings
+goals using the signed-in user's records. Reuse the existing finance calculations for
+dashboard and chat totals. Keep supported chat questions available during provider
+outages and quota limits. Show the date range, currency, and supporting records.
+Ask for clarification when a date, account, or category is ambiguous.
+
+Release requires exact reconciliation against independently calculated fixture totals
+and the dashboard for matching filters. Cover decimal rounding, time-zone and month
+boundaries, refunds, transfer exclusion, mixed currencies, empty periods, and account
+isolation. Verify that importing or editing a transaction changes the next answer.
+
+### Phase 2 — Private chat history and feedback
+
+Let registered users reopen and delete their conversations and optionally flag an
+incorrect answer. Keep hosted demo chats session-only. Verify conversation access
+and deletion across two separate accounts before enabling persistence.
+
+### Phase 3 — Train and evaluate a FinSight model
+
+Label synthetic questions with the correct tool, date range, and filters. Evaluate a
+small fine-tuned model on held-out phrasings and ambiguous requests before enabling it
+in production. Use live ledger tools for balances and totals, and keep private chats
+and raw ledger data out of training. Release only if the model improves tool and
+filter selection while passing the same calculation checks as Phase 1.
+
 ## 📁 Project Structure
 
 ```
