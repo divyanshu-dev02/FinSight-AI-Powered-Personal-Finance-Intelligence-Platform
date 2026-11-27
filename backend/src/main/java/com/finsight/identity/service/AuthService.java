@@ -78,21 +78,23 @@ public class AuthService {
     }
 
     @Transactional(readOnly = true)
-    public Optional<String> demoEmail() {
-        return activeDemo().map(User::getEmail);
+    public Optional<String> demoEmail(boolean hosted) {
+        return activeDemo(hosted).map(User::getEmail);
     }
 
     @Transactional
-    public Optional<AuthResponse> demoLogin() {
-        return activeDemo().map(user -> {
+    public Optional<AuthResponse> demoLogin(boolean hosted) {
+        return activeDemo(hosted).map(user -> {
             user.setLastLoginAt(Instant.now());
             return createAuthSession(user);
         });
     }
 
-    private Optional<User> activeDemo() {
-        return userRepository.findById(LocalDemoCredentials.DEMO_ID)
-                .filter(user -> LocalDemoCredentials.DEMO_EMAIL.equals(user.getEmail())
+    private Optional<User> activeDemo(boolean hosted) {
+        var id = hosted ? DemoCredentials.HOSTED_ID : DemoCredentials.DEMO_ID;
+        var email = hosted ? DemoCredentials.HOSTED_EMAIL : DemoCredentials.DEMO_EMAIL;
+        return userRepository.findById(id)
+                .filter(user -> email.equals(user.getEmail())
                         && user.getAccountStatus() == AccountStatus.ACTIVE);
     }
 

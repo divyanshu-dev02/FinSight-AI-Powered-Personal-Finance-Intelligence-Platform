@@ -28,11 +28,13 @@ public class AuthController {
     private final AuthService authService;
     private final UserService userService;
     private final boolean localDemoEnabled;
+    private final boolean hostedDemoEnabled;
 
     public AuthController(AuthService authService, UserService userService, Environment environment,
                           @Value("${DEMO_LOGIN_ENABLED:false}") boolean demoLoginEnabled) {
         this.authService = authService;
         this.userService = userService;
+        this.hostedDemoEnabled = demoLoginEnabled && environment.acceptsProfiles(Profiles.of("hosted-demo"));
         this.localDemoEnabled = demoLoginEnabled && environment.acceptsProfiles(Profiles.of("local"));
     }
 
@@ -52,23 +54,26 @@ public class AuthController {
 
     @GetMapping("/demo")
     ApiResponse<DemoAvailability> demoAvailability(HttpServletRequest request) {
-        var email = allowDemo(request) ? authService.demoEmail().orElse(null) : null;
+        var email = allowDemo(request) ? authService.demoEmail(hostedDemoEnabled).orElse(null) : null;
         return ApiResponse.success(new DemoAvailability(email));
     }
 
     @PostMapping("/demo")
     ResponseEntity<ApiResponse<AuthResponse>> demoLogin(HttpServletRequest request) {
         if (allowDemo(request)) {
-            var session = authService.demoLogin();
+            var session = authService.demoLogin(hostedDemoEnabled);
             if (session.isPresent()) {
                 return ResponseEntity.ok(ApiResponse.success(session.get()));
             }
         }
         return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                .body(ApiResponse.error("DEMO_UNAVAILABLE", "The local demo is unavailable."));
+                .body(ApiResponse.error("DEMO_UNAVAILABLE", "The demo is unavailable."));
     }
 
     private boolean allowDemo(HttpServletRequest request) {
+        if (hostedDemoEnabled) {
+            return true;
+        }
         if (!localDemoEnabled) {
             return false;
         }

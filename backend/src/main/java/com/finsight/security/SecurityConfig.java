@@ -1,10 +1,15 @@
 package com.finsight.security;
 
-import com.finsight.security.JwtAuthenticationFilter;
+import com.finsight.identity.service.DemoCredentials;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
+import org.springframework.security.authorization.AuthorizationDecision;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.env.Environment;
+import org.springframework.core.env.Profiles;
+import org.springframework.security.authentication.AnonymousAuthenticationToken;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
@@ -34,10 +39,13 @@ public class SecurityConfig {
     @Value("${cors.allowed-origins:http://localhost:5173}")
     private String allowedOriginsRaw;
 
+    private final boolean hostedDemo;
+
     public SecurityConfig(JwtAuthenticationFilter jwtAuthenticationFilter,
-                          UserDetailsService userDetailsService) {
+                          UserDetailsService userDetailsService, Environment environment) {
         this.jwtAuthenticationFilter = jwtAuthenticationFilter;
         this.userDetailsService = userDetailsService;
+        this.hostedDemo = environment.acceptsProfiles(Profiles.of("hosted-demo"));
     }
 
     @Bean
@@ -59,7 +67,15 @@ public class SecurityConfig {
                     "/swagger-ui.html",
                     "/v3/api-docs/**"
                 ).permitAll()
-                .anyRequest().authenticated()
+                .requestMatchers(HttpMethod.GET, "/**").authenticated()
+                .requestMatchers(HttpMethod.HEAD, "/**").authenticated()
+                .requestMatchers(HttpMethod.POST, "/api/v1/copilot/chat", "/api/v1/auth/logout").authenticated()
+                .anyRequest().access((authentication, context) -> {
+                    var user = authentication.get();
+                    return new AuthorizationDecision(user.isAuthenticated()
+                            && !(user instanceof AnonymousAuthenticationToken)
+                            && !(hostedDemo && DemoCredentials.HOSTED_EMAIL.equals(user.getName())));
+                })
             )
             .authenticationProvider(daoAuthenticationProvider())
             .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);

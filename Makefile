@@ -23,7 +23,7 @@ dev-reset:
 
 ## Load synthetic fixtures into the local Docker demo account after migrations
 demo-seed:
-	docker compose exec -T postgres sh -c 'psql -X -v ON_ERROR_STOP=1 -U "$$POSTGRES_USER" -d "$$POSTGRES_DB"' < scripts/seed-demo.sql
+	docker compose exec -T postgres sh -c 'psql -X -v ON_ERROR_STOP=1 -U "$$POSTGRES_USER" -d "$$POSTGRES_DB" -1 -f -' < backend/src/main/resources/demo/seed.sql
 
 # ── Backend (Spring Boot / Maven) ─────────────────────────────
 

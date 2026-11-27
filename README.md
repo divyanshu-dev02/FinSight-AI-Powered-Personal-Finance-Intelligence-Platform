@@ -138,6 +138,11 @@ on the local sign-in page. Select it, then **Sign In**. Demo autofill is
 limited to the local profile and loopback requests. The seed targets the local Docker
 database and can be rerun without duplicating or replacing existing records.
 
+The Render Blueprint enables the `hosted-demo` profile and generates a private
+`DEMO_PASSWORD` for the backend. The hosted demo uses a separate seeded account
+with sample data. Visitors can explore the dashboard and ask Copilot questions.
+Changes to the shared demo ledger and settings are disabled.
+
 Try asking Copilot, “Compare spending in Demo Everyday this month and last month.
 Which expenses explain the biggest difference?”
 

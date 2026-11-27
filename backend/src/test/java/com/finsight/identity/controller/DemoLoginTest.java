@@ -41,10 +41,28 @@ class DemoLoginTest {
         var request = new MockHttpServletRequest();
         request.setRemoteAddr("::1");
         var session = new AuthResponse("demo-token", "demo-refresh", 900, null);
-        when(auth.demoLogin()).thenReturn(Optional.of(session));
+        when(auth.demoLogin(false)).thenReturn(Optional.of(session));
 
         var response = new AuthController(auth, null, environment, true).demoLogin(request);
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(response.getBody().data()).isEqualTo(session);
+    }
+
+    @Test
+    void startsHostedDemoOnlyWhenOptedIn() {
+        var auth = mock(AuthService.class);
+        var environment = new MockEnvironment();
+        environment.setActiveProfiles("hosted-demo");
+        var request = new MockHttpServletRequest();
+        request.setRemoteAddr("192.0.2.35");
+        var session = new AuthResponse("demo-token", "demo-refresh", 900, null);
+
+        assertThat(new AuthController(auth, null, environment, false).demoLogin(request).getStatusCode())
+                .isEqualTo(HttpStatus.NOT_FOUND);
+        verifyNoInteractions(auth);
+
+        when(auth.demoLogin(true)).thenReturn(Optional.of(session));
+        assertThat(new AuthController(auth, null, environment, true).demoLogin(request).getBody().data())
+                .isEqualTo(session);
     }
 }

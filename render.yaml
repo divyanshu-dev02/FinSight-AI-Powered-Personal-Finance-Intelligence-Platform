@@ -31,6 +31,12 @@ services:
         fromDatabase:
           name: finsight-postgres
           property: password
+      - key: SPRING_PROFILES_ACTIVE
+        value: hosted-demo
+      - key: DEMO_LOGIN_ENABLED
+        value: "true"
+      - key: DEMO_PASSWORD
+        generateValue: true
       - key: JWT_SECRET
         generateValue: true
       - key: JWT_ACCESS_TTL_SECONDS
