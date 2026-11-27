@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
+import { isAxiosError } from 'axios';
 import { api, type ApiResponse } from '@/lib/api';
 
 type Source = { id: string; label: string; path: string };
@@ -26,9 +27,16 @@ export function CopilotChat({ month, comparable }: { month: string; comparable: 
   const [turns, setTurns] = useState<Turn[]>([]);
   const [pending, setPending] = useState<string>();
   const [error, setError] = useState<string>();
+  const [retryAt, setRetryAt] = useState<number>();
   const controller = useRef<AbortController>(null);
 
   useEffect(() => () => { controller.current?.abort(); }, []);
+
+  useEffect(() => {
+    if (!retryAt) return;
+    const timer = window.setTimeout(() => setRetryAt(undefined), Math.max(0, retryAt - Date.now()));
+    return () => window.clearTimeout(timer);
+  }, [retryAt]);
 
   function clear() {
     controller.current?.abort();
@@ -42,7 +50,7 @@ export function CopilotChat({ month, comparable }: { month: string; comparable: 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const question = input.trim();
-    if (!question || !consent || controller.current) return;
+    if (!question || !consent || controller.current || retryAt && retryAt > Date.now()) return;
     const request = new AbortController();
     controller.current = request;
     setPending(question);
@@ -61,8 +69,14 @@ export function CopilotChat({ month, comparable }: { month: string; comparable: 
       }
     } catch (failure) {
       if (!request.signal.aborted) {
-        const response = (failure as { response?: { data?: ApiResponse<unknown> } }).response;
-        setError(response?.data?.error?.message ?? 'Copilot could not answer right now. Try again.');
+        const response = isAxiosError<ApiResponse<unknown>>(failure) ? failure.response : undefined;
+        const seconds = Number(response?.headers['retry-after']);
+        if (response?.status === 429 && Number.isInteger(seconds) && seconds > 0 && seconds <= 86_400) {
+          setRetryAt(Date.now() + seconds * 1000);
+          setError(undefined);
+        } else {
+          setError(response?.data?.error?.message ?? 'Copilot could not answer right now. Try again.');
+        }
       }
     } finally {
       if (controller.current === request) {
@@ -129,8 +143,14 @@ export function CopilotChat({ month, comparable }: { month: string; comparable: 
               <input type="checkbox" checked={consent} disabled={!!pending} onChange={event => setConsentedProvider(event.target.checked ? provider : undefined)} />
               Allow Copilot to send this chat and the financial data it needs to {provider}.
             </label>
+            {retryAt && (
+              <p role="status" className="text-sm text-slate-700">
+                Groq’s usage limit was reached. Chat will be available to retry at {new Date(retryAt).toLocaleTimeString()}.
+                You can use the spending shortcuts below while you wait.
+              </p>
+            )}
             {error && <p role="alert" className="text-sm text-red-700">{error}</p>}
-            <button type="submit" disabled={!consent || !input.trim() || !!pending}
+            <button type="submit" disabled={!consent || !input.trim() || !!pending || !!retryAt}
               className="w-fit rounded-lg bg-blue-700 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">
               {pending ? 'Checking…' : 'Send'}
             </button>

@@ -58,7 +58,7 @@ public class CopilotController {
 
     @org.springframework.web.bind.annotation.ExceptionHandler(ResponseStatusException.class)
     ResponseEntity<ApiResponse<Void>> questionError(ResponseStatusException exception) {
-        return ResponseEntity.status(exception.getStatusCode())
+        return ResponseEntity.status(exception.getStatusCode()).headers(exception.getHeaders())
                 .body(ApiResponse.error("COPILOT_UNAVAILABLE", exception.getReason()));
     }
 

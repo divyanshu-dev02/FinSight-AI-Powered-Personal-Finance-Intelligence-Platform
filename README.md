@@ -49,7 +49,9 @@ file at the repository root. Use one `NAME=value` per line.
 
 The app asks for consent before sharing the chat and the financial data
 required by the selected provider. Chat history stays in the current page
-session, and the finance tools are read-only.
+session, and the finance tools are read-only. Copilot accepts valid
+Groq replies directly to save a request. When Groq rate-limits chat, the app
+uses the provider’s retry delay and keeps the spending shortcuts available.
 
 ---
 

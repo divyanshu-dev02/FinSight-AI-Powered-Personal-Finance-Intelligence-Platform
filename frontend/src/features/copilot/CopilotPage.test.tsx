@@ -83,3 +83,32 @@ it('requires consent and passes the conversation into a follow-up', async () => 
     post.mockRestore();
   }
 });
+
+it('keeps the draft and disables Send during the provider retry window', async () => {
+  const get = vi.spyOn(api, 'get').mockImplementation(async path => ({
+    data: { data: path === '/copilot/status' ? { available: true, provider: 'Groq' } : { current: [], previous: [], evidence: [] } },
+  }));
+  const post = vi.spyOn(api, 'post').mockRejectedValue({
+    isAxiosError: true, response: { status: 429, headers: { 'retry-after': '15' } },
+  });
+  try {
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <MemoryRouter><CopilotPage /></MemoryRouter>
+      </QueryClientProvider>
+    );
+    const question = await screen.findByLabelText('Ask a question');
+    fireEvent.change(question, { target: { value: 'What changed?' } });
+    fireEvent.click(screen.getByRole('checkbox', { name: /Allow Copilot to send/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'Send' }));
+
+    expect(await screen.findByText(/Groq’s usage limit was reached/)).toBeInTheDocument();
+    expect(question).toHaveValue('What changed?');
+    expect(screen.getByRole('button', { name: 'Send' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'How much did I spend?' })).toBeEnabled();
+    expect(post).toHaveBeenCalledTimes(1);
+  } finally {
+    get.mockRestore();
+    post.mockRestore();
+  }
+});

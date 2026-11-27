@@ -28,7 +28,6 @@ import java.util.concurrent.Semaphore;
 class CopilotAgent {
 
     private static final int TOOL_LIMIT = 4;
-    private static final int MAX_ANSWER_LENGTH = 4_000;
     private static final String INSTRUCTIONS = """
             You are FinSight Copilot. Answer the latest question directly and support follow-ups.
             You can answer general questions and explain personal finance concepts. For any claims
@@ -38,8 +37,9 @@ class CopilotAgent {
             Use the specified dates, filters, and currencies. Keep currencies separate unless a tool provides
             converted values. Identify incomplete coverage, empty results, and assumptions. Do not infer
             current balances from past transactions or call a scheduled commitment a posted transaction.
-            For comparisons, use tools for each period. For totals use analyze_transactions; search results
-            are samples and cannot establish a total. Give exact date ranges and currency codes when useful.
+            For full-month comparisons, use analyze_transactions grouped by MONTH across both months in one call
+            when possible. For partial or separate periods, query each exact period. For totals use analyze_transactions;
+            search results are samples and cannot establish a total. Give date ranges and currency codes when useful.
             Ask a short clarifying question when a user cannot be answered without a material assumption.
             Respond with readable plain text, using short paragraphs or bullets. Put only the relevant,
             exact source identifiers returned by the tools into sourceRefs. Never invent sources or include URLs.
@@ -161,19 +161,10 @@ class CopilotAgent {
                     return new Answer("I couldn’t answer that request. Try rephrasing your question.", List.of());
                 }
                 if ("output_text".equals(part.path("type").asText())) {
-                    try {
-                        JsonNode reply = json.readTree(part.path("text").asText());
-                        String text = reply.path("answer").asText();
-                        JsonNode refs = reply.path("sourceRefs");
-                        if (!reply.path("answer").isTextual() || text.isBlank() || text.length() > MAX_ANSWER_LENGTH
-                                || !refs.isArray() || refs.size() > 30) {
-                            throw incomplete();
-                        }
-                        List<String> references = new ArrayList<>();
-                        refs.forEach(ref -> references.add(ref.asText()));
-                        return new Answer(text, citations.resolve(references));
-                    } catch (JsonProcessingException exception) {
-                        throw incomplete();
+                    var reply = CopilotReply.parse(json, part.path("text").asText());
+                    if (reply.isPresent()) {
+                        var decoded = reply.get();
+                        return new Answer(decoded.answer(), citations.resolve(decoded.sourceRefs()));
                     }
                 }
             }
@@ -215,7 +206,7 @@ class CopilotAgent {
                    boolean comparable, @Size(max = 20) String provider, @Size(max = 12) List<@NotNull @Valid Message> history) {}
 
     record Message(@NotBlank @Pattern(regexp = "user|assistant") String role,
-                   @NotBlank @Size(max = MAX_ANSWER_LENGTH) String content) {}
+                   @NotBlank @Size(max = CopilotReply.MAX_ANSWER_LENGTH) String content) {}
 
     record Answer(String answer, List<CopilotTools.Citation> sources) {}
 }
