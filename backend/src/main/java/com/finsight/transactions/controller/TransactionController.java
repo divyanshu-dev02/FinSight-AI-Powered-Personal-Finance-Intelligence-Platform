@@ -6,6 +6,7 @@ import com.finsight.identity.service.UserService;
 import com.finsight.transactions.dto.CreateTransactionRequest;
 import com.finsight.transactions.dto.CreateTransferRequest;
 import com.finsight.transactions.dto.TransactionResponse;
+import com.finsight.transactions.dto.TransactionFilter;
 import com.finsight.transactions.dto.UpdateTransactionRequest;
 import com.finsight.transactions.service.TransactionService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -15,13 +16,16 @@ import jakarta.validation.Valid;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
+import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.YearMonth;
 import java.time.LocalDate;
 import java.util.UUID;
 
@@ -45,10 +49,34 @@ public class TransactionController {
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size,
             @RequestParam(defaultValue = "false") boolean includeArchived,
+            @RequestParam(required = false) YearMonth spendingMonth,
+            @RequestParam(required = false) LocalDate spendingStart,
+            @RequestParam(required = false) LocalDate spendingEnd,
+            @RequestParam(required = false) String currency,
+            @Valid @ModelAttribute TransactionFilter filter,
             Authentication authentication) {
         User user = userService.findEntityByEmail(authentication.getName());
         Pageable pageable = PageRequest.of(page, size);
-        Page<TransactionResponse> transactions = transactionService.getTransactionsForUser(user, includeArchived, pageable);
+        boolean hasDates = spendingStart != null || spendingEnd != null;
+        boolean spending = spendingMonth != null || hasDates;
+        if ((hasDates && (spendingMonth != null || spendingStart == null || spendingEnd == null
+                || spendingEnd.isBefore(spendingStart)))
+                || (spending && (currency == null || !currency.matches("[A-Z]{3}")))) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "A spending filter requires a valid range and currency.");
+        }
+        if (filter.from() != null && filter.to() != null && filter.to().isBefore(filter.from())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "The end date must be on or after the start date.");
+        }
+        LocalDate chartStart = spendingMonth == null ? spendingStart : spendingMonth.atDay(1);
+        LocalDate chartEnd = spendingMonth == null ? spendingEnd : spendingMonth.atEndOfMonth();
+        Page<TransactionResponse> transactions;
+        if (filter.isEmpty()) {
+            transactions = spending ? transactionService.getSpendingTransactions(user, chartStart, chartEnd, currency, pageable)
+                    : transactionService.getTransactionsForUser(user, includeArchived, pageable);
+        } else {
+            var sorted = PageRequest.of(page, size, Sort.by(Sort.Order.desc("transactionDate"), Sort.Order.desc("createdAt"), Sort.Order.asc("id")));
+            transactions = transactionService.filterTransactions(user, filter, includeArchived, chartStart, chartEnd, currency, sorted);
+        }
         return ResponseEntity.ok(ApiResponse.success(transactions));
     }
 

@@ -1,5 +1,5 @@
 import { ArrowLeftRight, ChevronDown, Download, Plus, Upload } from 'lucide-react';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
@@ -11,6 +11,8 @@ import { formatCurrency, formatDate } from '@/lib/utils';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
 import { TransactionAmount } from '@/components/TransactionAmount';
 import { StatementImportModal } from './StatementImportModal';
+import { TransactionFilters } from './TransactionFilters';
+import { transactionFilterKeys, type TransactionFilterValues } from './transactionFilterValues';
 
 // Schema for manual expense/income transaction
 const transactionSchema = z.object({
@@ -51,8 +53,16 @@ interface PaginatedData<T> {
 }
 
 export function TransactionsPage() {
-  const [params] = useSearchParams();
+  const [params, setParams] = useSearchParams();
+  const spendingMonth = params.get('spendingMonth');
+  const spendingCurrency = params.get('currency');
+  const spendingStart = params.get('spendingStart');
+  const spendingEnd = params.get('spendingEnd');
+  const spendingView = spendingMonth !== null || spendingStart !== null || spendingEnd !== null;
   const evidenceId = params.get('evidence');
+  const filters = Object.fromEntries(transactionFilterKeys.map(key => [key, params.get(key) ?? ''])) as TransactionFilterValues;
+  const activeFilters = transactionFilterKeys.some(key => Boolean(filters[key]));
+  const requestFilters = Object.fromEntries(Object.entries(filters).filter(([, value]) => value));
   const evidence = useQuery({
     queryKey: ['transaction-evidence', evidenceId],
     enabled: !!evidenceId,
@@ -64,23 +74,28 @@ export function TransactionsPage() {
     },
   });
   const queryClient = useQueryClient();
+  const addMenu = useRef<HTMLDetailsElement>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isTransferModalOpen, setIsTransferModalOpen] = useState(false);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [searchTerm, setSearchTerm] = useState('');
   const [page, setPage] = useState(0);
   const [isExporting, setIsExporting] = useState(false);
 
   const [includeArchived, setIncludeArchived] = useState(false);
 
   // 1. Fetch transactions (defaults to active accounts only)
-  const { data: transactionsPage, isLoading } = useQuery({
-    queryKey: ['transactions', page, includeArchived],
-    queryFn: async () => {
-      const res = await api.get<ApiResponse<PaginatedData<Transaction>>>(
-        `/transactions?page=${page}&size=15&includeArchived=${includeArchived}`
-      );
+  const { data: transactionsPage, isLoading, isError, refetch } = useQuery({
+    queryKey: ['transactions', page, includeArchived, spendingMonth, spendingStart, spendingEnd, spendingCurrency, requestFilters],
+    enabled: !evidenceId,
+    queryFn: async ({ signal }) => {
+      const res = await api.get<ApiResponse<PaginatedData<Transaction>>>('/transactions', {
+        params: {
+          page, size: 15, includeArchived, ...requestFilters,
+          ...(spendingView ? { spendingMonth, spendingStart, spendingEnd, currency: spendingCurrency } : {}),
+        },
+        signal,
+      });
       return res.data.data;
     },
   });
@@ -92,6 +107,14 @@ export function TransactionsPage() {
       const res = await api.get<ApiResponse<FinancialAccount[]>>('/accounts');
       return res.data.data;
     },
+  });
+
+  const { data: allFilterAccounts } = useQuery({
+    queryKey: ['accounts', 'including-archived'],
+    enabled: includeArchived && !spendingView && !evidenceId,
+    queryFn: async ({ signal }) => (await api.get<ApiResponse<FinancialAccount[]>>('/accounts', {
+      params: { includeArchived: true }, signal,
+    })).data.data,
   });
 
   // 3. Fetch categories for dropdowns
@@ -213,28 +236,20 @@ export function TransactionsPage() {
     }
   };
 
-  const handleExportJson = () => {
-    if (!transactionsPage?.content) return;
-    const jsonStr = JSON.stringify(transactionsPage.content, null, 2);
-    const blob = new Blob([jsonStr], { type: 'application/json' });
-    const url = window.URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.setAttribute('download', `finsight-transactions-${new Date().toISOString().slice(0, 10)}.json`);
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-  };
+  const transactions = transactionsPage?.content ?? [];
 
-  const rawTransactions = transactionsPage?.content || [];
-  const transactions = searchTerm
-    ? rawTransactions.filter(
-        (t) =>
-          t.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          (t.merchant && t.merchant.toLowerCase().includes(searchTerm.toLowerCase())) ||
-          (t.categoryName && t.categoryName.toLowerCase().includes(searchTerm.toLowerCase()))
-      )
-    : rawTransactions;
+  function applyFilters(values?: TransactionFilterValues) {
+    setPage(0);
+    setParams(current => {
+      const next = new URLSearchParams(current);
+      for (const key of transactionFilterKeys) {
+        const value = values?.[key];
+        if (value) next.set(key, value);
+        else next.delete(key);
+      }
+      return next;
+    });
+  }
 
   if (evidenceId) {
     const transaction = evidence.data;
@@ -266,16 +281,34 @@ export function TransactionsPage() {
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2.5">
-          {/* Export Dropdown */}
-          <details className="relative">
-            <summary className="list-none cursor-pointer rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 [&::-webkit-details-marker]:hidden">
-              <span className="inline-flex items-center gap-2"><Download size={16} aria-hidden="true" />{isExporting ? 'Exporting…' : 'Export'}<ChevronDown size={14} aria-hidden="true" /></span>
+          <details ref={addMenu} className="relative">
+            <summary className="flex min-h-9 list-none cursor-pointer items-center gap-2 rounded-xl bg-blue-700 px-4 py-2.5 text-xs font-semibold text-white hover:bg-blue-800 [&::-webkit-details-marker]:hidden">
+              <Plus size={16} aria-hidden="true" /> Add Transaction <ChevronDown size={14} aria-hidden="true" />
             </summary>
-            <div className="absolute left-0 z-20 mt-1 w-44 rounded-xl border border-slate-200 bg-white p-1.5 shadow-lg">
-              <button type="button" disabled={isExporting} onClick={handleExportCsv} className="block w-full rounded-lg px-3 py-2 text-left text-sm hover:bg-slate-50">Download CSV</button>
-              <button type="button" disabled={isExporting} onClick={handleExportJson} className="block w-full rounded-lg px-3 py-2 text-left text-sm hover:bg-slate-50">Download JSON</button>
+            <div className="absolute left-0 z-20 mt-1 w-48 rounded-xl border border-slate-200 bg-white p-1.5 shadow-lg">
+              <button type="button" onClick={() => {
+                if (addMenu.current) addMenu.current.open = false;
+                reset();
+                setErrorMessage(null);
+                setIsModalOpen(true);
+              }} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-slate-800 hover:bg-slate-50">
+                <Plus size={16} aria-hidden="true" /> Record income or expense
+              </button>
+              <button type="button" onClick={() => {
+                if (addMenu.current) addMenu.current.open = false;
+                resetTransfer();
+                setErrorMessage(null);
+                setIsTransferModalOpen(true);
+              }} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50">
+                <ArrowLeftRight size={16} aria-hidden="true" /> Record a transfer
+              </button>
             </div>
           </details>
+
+          <button type="button" disabled={isExporting} onClick={handleExportCsv} title="Download all transactions"
+            className="inline-flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50">
+            <Download size={16} aria-hidden="true" />{isExporting ? 'Exporting…' : 'Export CSV'}
+          </button>
 
           {/* Import Statement */}
           <button
@@ -286,80 +319,49 @@ export function TransactionsPage() {
             <span>Import Statement</span>
           </button>
 
-          {/* Transfer Funds */}
-          <button
-            onClick={() => {
-              resetTransfer();
-              setErrorMessage(null);
-              setIsTransferModalOpen(true);
-            }}
-            className="inline-flex items-center gap-1.5 rounded-xl border border-indigo-200 bg-indigo-50/70 px-3.5 py-2.5 text-xs font-semibold text-indigo-700 shadow-xs hover:bg-indigo-100 transition-all cursor-pointer"
-          >
-            <ArrowLeftRight size={16} aria-hidden="true" />
-            <span>Transfer Funds</span>
-          </button>
-
-          {/* Add Transaction */}
-          <button
-            onClick={() => {
-              reset();
-              setErrorMessage(null);
-              setIsModalOpen(true);
-            }}
-            className="inline-flex items-center gap-1.5 rounded-xl bg-blue-600 px-4 py-2.5 text-xs font-semibold text-white shadow-xs hover:bg-blue-700 transition-all cursor-pointer"
-          >
-            <Plus size={16} aria-hidden="true" />
-            <span>Add Transaction</span>
-          </button>
         </div>
       </div>
 
-      {/* Scope / Filter Bar */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between bg-white px-5 py-3.5 rounded-2xl border border-gray-200 gap-4 shadow-xs">
-        <div className="flex items-center gap-3 flex-1">
-          <div className="relative w-full max-w-xs">
-            <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-400">🔍</span>
-            <input
-              type="text"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Search by description, merchant, category..."
-              className="w-full pl-9 pr-3 py-1.5 text-sm rounded-xl border border-gray-300 focus:outline-none focus:border-blue-500"
-            />
-          </div>
-          {searchTerm && (
-            <button
-              onClick={() => setSearchTerm('')}
-              className="text-xs text-gray-500 hover:text-gray-800"
-            >
-              Clear
-            </button>
-          )}
-        </div>
-
-        <label className="relative inline-flex items-center cursor-pointer select-none">
-          <input
-            type="checkbox"
-            checked={includeArchived}
-            onChange={(e) => {
-              setIncludeArchived(e.target.checked);
-              setPage(0);
-            }}
-            className="sr-only peer"
-          />
-          <div className="w-9 h-5 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-600"></div>
-          <span className="ml-3 text-xs font-medium text-gray-600">
-            Include archived accounts
-          </span>
+      <TransactionFilters values={filters} spendingView={spendingView}
+        accounts={(includeArchived && !spendingView ? allFilterAccounts ?? accounts : accounts) ?? []}
+        categories={categories ?? []} onApply={applyFilters} onClear={() => applyFilters()} />
+      {!spendingView && (
+        <label className="inline-flex items-center gap-2 text-sm font-medium text-slate-700">
+          <input type="checkbox" checked={includeArchived} onChange={event => {
+            setIncludeArchived(event.target.checked);
+            setPage(0);
+          }} className="h-4 w-4 rounded border-slate-300 accent-blue-700" />
+          Include archived accounts
         </label>
-      </div>
+      )}
 
-      {isLoading ? (
+      {spendingView && (
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-slate-800">
+          <span>Expenses · {spendingMonth ?? (spendingStart === spendingEnd ? spendingStart : `${spendingStart} to ${spendingEnd}`)} · {spendingCurrency} · Active accounts</span>
+          <button type="button" className="font-semibold text-blue-700 hover:underline" onClick={() => {
+            setPage(0);
+            setParams(current => {
+              const next = new URLSearchParams(current);
+              next.delete('spendingMonth');
+              next.delete('spendingStart');
+              next.delete('spendingEnd');
+              next.delete('currency');
+              return next;
+            });
+          }}>Clear spending filter</button>
+        </div>
+      )}
+
+      {isError ? (
+        <p role="alert" className="rounded-xl bg-red-50 p-4 text-sm text-red-800">
+          Couldn’t load transactions. <button type="button" className="font-semibold underline" onClick={() => void refetch()}>Retry</button>
+        </p>
+      ) : isLoading ? (
         <div className="flex justify-center p-12">
           <LoadingSpinner size="lg" />
         </div>
       ) : transactions.length > 0 ? (
-        <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-xs">
+        <div className="overflow-x-auto rounded-2xl border border-gray-200 bg-white shadow-xs">
           <table className="min-w-full divide-y divide-gray-200 text-sm">
             <thead className="bg-gray-50 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
               <tr>
@@ -451,6 +453,11 @@ export function TransactionsPage() {
               </button>
             </div>
           </div>
+        </div>
+      ) : spendingView || activeFilters ? (
+        <div className="rounded-xl border border-slate-200 bg-white p-5 text-sm text-slate-600">
+          <p>No {spendingView ? 'expenses' : 'transactions'} match these filters.</p>
+          {activeFilters && <button type="button" className="mt-2 font-semibold text-blue-700 hover:underline" onClick={() => applyFilters()}>Clear transaction filters</button>}
         </div>
       ) : (
         <div className="rounded-2xl border-2 border-dashed border-gray-300 p-12 text-center bg-white">
@@ -627,14 +634,13 @@ export function TransactionsPage() {
         </div>
       )}
 
-      {/* First-Class Transfer Funds Modal */}
       {isTransferModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs">
           <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl border border-gray-100">
             <div className="flex items-center justify-between border-b border-gray-100 pb-3">
               <div className="flex items-center gap-2">
                 <span className="text-xl">⇄</span>
-                <h3 className="text-lg font-bold text-gray-900">Transfer Funds Between Accounts</h3>
+                <h3 className="text-lg font-bold text-gray-900">Record a transfer</h3>
               </div>
               <button
                 onClick={() => setIsTransferModalOpen(false)}
@@ -645,7 +651,7 @@ export function TransactionsPage() {
             </div>
 
             <p className="text-xs text-gray-500 mt-2">
-              Transfers move money between your accounts without affecting your monthly income or expense totals.
+              Log a transfer you already made between your own accounts. FinSight excludes it from income and spending totals.
             </p>
 
             {errorMessage && (
@@ -743,7 +749,7 @@ export function TransactionsPage() {
                   className="inline-flex items-center rounded-xl bg-indigo-600 px-5 py-2 text-sm font-semibold text-white shadow-xs hover:bg-indigo-700 disabled:opacity-50"
                 >
                   {transferMutation.isPending ? <LoadingSpinner size="sm" className="mr-2 border-white" /> : null}
-                  Complete Transfer
+                  Save transfer record
                 </button>
               </div>
             </form>

@@ -285,7 +285,7 @@ export function AccountsPage() {
                       }}
                       className="text-xs font-semibold text-amber-600 hover:text-amber-700 transition-colors cursor-pointer"
                     >
-                      Archive & Hide
+                      Archive account
                     </button>
                   ) : (
                     <div className="flex items-center gap-3">
@@ -295,20 +295,23 @@ export function AccountsPage() {
                       >
                         Restore
                       </button>
-                      <button
-                        onClick={() => {
-                          if (
-                            confirm(
-                              `PERMANENTLY DELETE "${acc.name}"?\n\n⚠️ WARNING: This will permanently erase this account and ALL transactions recorded under it. This action CANNOT be undone.`
-                            )
-                          ) {
-                            permanentDeleteMutation.mutate(acc.id);
-                          }
-                        }}
-                        className="text-xs font-bold text-red-600 hover:text-red-800 transition-colors cursor-pointer"
-                      >
-                        Delete Permanently
-                      </button>
+                      <details className="text-xs">
+                        <summary className="cursor-pointer font-semibold text-slate-600 hover:text-slate-900">More options</summary>
+                        <button
+                          onClick={() => {
+                            if (
+                              confirm(
+                                `PERMANENTLY DELETE "${acc.name}"?\n\n⚠️ WARNING: This will permanently erase this account and ALL transactions recorded under it. This action CANNOT be undone.`
+                              )
+                            ) {
+                              permanentDeleteMutation.mutate(acc.id);
+                            }
+                          }}
+                          className="mt-2 block text-xs font-bold text-red-600 hover:text-red-800 transition-colors cursor-pointer"
+                        >
+                          Delete Permanently
+                        </button>
+                      </details>
                     </div>
                   )}
                 </div>

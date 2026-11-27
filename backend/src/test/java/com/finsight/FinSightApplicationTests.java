@@ -85,6 +85,110 @@ class FinSightApplicationTests {
     private CopilotModel copilotModel;
 
     @Test
+    void spendingTrendAndDrilldownUseTheSameOwnerMonthsAndCurrencies() throws Exception {
+        String owner = register("trend-owner@example.test");
+        String other = register("trend-other@example.test");
+        String inr = account(owner, "INR");
+        String usd = account(owner, "USD");
+        String archived = create("/api/v1/accounts", owner,
+                Map.of("name", "Archived checking", "type", "BANK_ACCOUNT", "currency", "INR", "openingBalance", 1000), "id");
+        datedExpense(owner, inr, "INR", "Before window", 99, "2025-04-30");
+        datedExpense(owner, inr, "INR", "First month", 30, "2025-05-01");
+        datedExpense(owner, usd, "USD", "Travel", 15, "2025-10-01");
+        String matching = datedExpense(owner, inr, "INR", "Last day", 110, "2025-10-31");
+        String category = jdbc.sql("SELECT id::text FROM categories WHERE user_id IS NULL AND name = 'Groceries'")
+                .query(String.class).single();
+        create("/api/v1/transactions", owner, Map.of("accountId", inr, "categoryId", category, "direction", "DEBIT",
+                "currency", "INR", "amount", 25, "description", "Earlier expense", "merchant", "Last day Market", "transactionDate", "2025-10-02"), "id");
+        datedExpense(owner, inr, "INR", "After window", 70, "2025-11-01");
+        datedExpense(owner, archived, "INR", "Archived expense", 71, "2025-10-01");
+        datedExpense(other, account(other, "INR"), "INR", "Private expense", 999, "2025-10-01");
+        create("/api/v1/transactions", owner, Map.of("accountId", inr, "direction", "CREDIT",
+                "currency", "INR", "amount", 5, "description", "Refund", "transactionDate", "2025-10-08"), "id");
+        mvc.perform(post("/api/v1/transactions/transfer").header("Authorization", "Bearer " + owner)
+                        .contentType("application/json").content(json.writeValueAsBytes(Map.of(
+                                "sourceAccountId", inr, "destinationAccountId", archived,
+                                "amount", 5, "transactionDate", "2025-10-15"))))
+                .andExpect(status().isCreated());
+        jdbc.sql("UPDATE financial_accounts SET is_active = false WHERE id = CAST(:id AS uuid)").param("id", archived).update();
+
+        mvc.perform(get("/api/v1/dashboard/spending-trend").header("Authorization", "Bearer " + owner)
+                        .param("month", "2025-10"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.data.buckets.length()").value(3))
+                .andExpect(jsonPath("$.data.buckets[0].bucket").value("2025-05"))
+                .andExpect(jsonPath("$.data.buckets[0].amount").value(30))
+                .andExpect(jsonPath("$.data.buckets[1].currency").value("INR"))
+                .andExpect(jsonPath("$.data.buckets[1].amount").value(135))
+                .andExpect(jsonPath("$.data.buckets[2].currency").value("USD"))
+                .andExpect(jsonPath("$.data.buckets[2].amount").value(15))
+                .andExpect(jsonPath("$.data.totals.INR").value(165))
+                .andExpect(jsonPath("$.data.totals.USD").value(15))
+                .andExpect(jsonPath("$.data.categories[0].name").value("Uncategorized"))
+                .andExpect(jsonPath("$.data.categories[0].amount").value(140))
+                .andExpect(jsonPath("$.data.categories[1].categoryId").value(category))
+                .andExpect(jsonPath("$.data.categories[1].amount").value(25))
+                .andExpect(jsonPath("$.data.categories[2].currency").value("USD"))
+                .andExpect(jsonPath("$.data.merchants[0].name").value("Last day"))
+                .andExpect(jsonPath("$.data.merchants[0].amount").value(110));
+
+        mvc.perform(get("/api/v1/transactions").header("Authorization", "Bearer " + owner)
+                        .param("spendingMonth", "2025-10").param("currency", "INR").param("size", "1"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.data.totalElements").value(2))
+                .andExpect(jsonPath("$.data.content[0].id").value(matching));
+
+        mvc.perform(get("/api/v1/dashboard/spending-trend").header("Authorization", "Bearer " + owner)
+                        .param("month", "2025-10").param("start", "2025-10-03").param("end", "2025-10-31"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.data.buckets.length()").value(1))
+                .andExpect(jsonPath("$.data.buckets[0].bucket").value("2025-10-31"))
+                .andExpect(jsonPath("$.data.buckets[0].amount").value(110))
+                .andExpect(jsonPath("$.data.totals.INR").value(110));
+
+        mvc.perform(get("/api/v1/transactions").header("Authorization", "Bearer " + owner)
+                        .param("spendingStart", "2025-10-31").param("spendingEnd", "2025-10-31").param("currency", "INR"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.data.totalElements").value(1))
+                .andExpect(jsonPath("$.data.content[0].id").value(matching));
+
+        mvc.perform(get("/api/v1/transactions").header("Authorization", "Bearer " + owner)
+                        .param("spendingMonth", "2025-10").param("currency", "INR").param("merchant", "LAST DAY"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.data.totalElements").value(1))
+                .andExpect(jsonPath("$.data.content[0].id").value(matching));
+    }
+
+    @Test
+    void transactionFiltersApplyBeforePaginationAndPreserveChartScope() throws Exception {
+        String owner = register("transaction-filter-owner@example.test");
+        String other = register("transaction-filter-other@example.test");
+        String inr = account(owner, "INR");
+        String usd = account(owner, "USD");
+        String category = jdbc.sql("SELECT id::text FROM categories WHERE user_id IS NULL AND name = 'Groceries'")
+                .query(String.class).single();
+        String match = create("/api/v1/transactions", owner,
+                Map.of("accountId", inr, "categoryId", category, "direction", "DEBIT", "currency", "INR",
+                        "amount", 42, "description", "Market groceries", "transactionDate", "2025-10-05"), "id");
+        datedExpense(owner, inr, "INR", "Newer expense", 15, "2025-11-02");
+        datedExpense(owner, usd, "USD", "Market", 17, "2025-10-05");
+        datedExpense(other, account(other, "INR"), "INR", "Market", 999, "2025-10-05");
+        create("/api/v1/transactions", owner, Map.of("accountId", inr, "direction", "CREDIT",
+                "currency", "INR", "amount", 5, "description", "Market refund", "transactionDate", "2025-10-05"), "id");
+
+        mvc.perform(get("/api/v1/transactions").header("Authorization", "Bearer " + owner)
+                        .param("search", "MARKET").param("accountId", inr).param("categoryId", category)
+                        .param("from", "2025-10-05").param("to", "2025-10-05")
+                        .param("type", "EXPENSE").param("size", "1"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.data.totalElements").value(1))
+                .andExpect(jsonPath("$.data.content[0].id").value(match));
+
+        mvc.perform(get("/api/v1/transactions").header("Authorization", "Bearer " + owner)
+                        .param("search", "market").param("spendingMonth", "2025-10").param("currency", "INR"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.data.totalElements").value(1))
+                .andExpect(jsonPath("$.data.content[0].id").value(match));
+
+        mvc.perform(get("/api/v1/transactions").header("Authorization", "Bearer " + other)
+                        .param("accountId", inr))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.data.totalElements").value(0));
+    }
+
+    @Test
     void conversationalCopilotLooksUpOnlyOwnerDataAndResolvesOnlyRealSources() throws Exception {
         String owner = register("agent-owner@example.test");
         String other = register("agent-other@example.test");

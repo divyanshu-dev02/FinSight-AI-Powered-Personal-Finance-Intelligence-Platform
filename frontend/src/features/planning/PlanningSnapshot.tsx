@@ -6,7 +6,8 @@ export function PlanningSnapshot({ month, userId }: { month: string; userId: str
   const planning = usePlanning(userId, month);
   const upcoming = planning.data?.occurrences
     .filter(item => item.dueDate >= planning.data.today && !item.transactionId).slice(0, 3) ?? [];
-  const budgets = planning.data?.budgets.slice(0, 3) ?? [];
+  const budgets = [...(planning.data?.budgets ?? [])]
+    .sort((left, right) => right.spent / (right.amount || 1) - left.spent / (left.amount || 1)).slice(0, 3);
 
   return (
     <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6" aria-labelledby="dashboard-planning">
@@ -21,8 +22,26 @@ export function PlanningSnapshot({ month, userId }: { month: string; userId: str
           <div>
             <h3 className="text-sm font-semibold text-slate-900">Budget progress</h3>
             {budgets.length ? (
-              <ul className="mt-1 space-y-1 text-sm text-slate-700">
-                {budgets.map(item => <li key={item.id}>{item.categoryName} · {formatCurrency(item.spent, item.currency)} of {formatCurrency(item.amount, item.currency)}</li>)}
+              <ul className="mt-3 space-y-4 text-sm text-slate-700">
+                {budgets.map(item => {
+                  const remaining = item.amount - item.spent;
+                  const percentage = Math.max(0, Math.min(item.spent / (item.amount || 1) * 100, 100));
+                  const over = remaining < 0;
+                  return (
+                    <li key={item.id}>
+                      <div className="flex flex-wrap justify-between gap-x-2">
+                        <span className="font-semibold text-slate-800">{item.categoryName}</span>
+                        <span className={over ? 'font-semibold text-rose-700' : 'text-emerald-700'}>
+                          {formatCurrency(Math.abs(remaining), item.currency)} {over ? 'over' : 'left'}
+                        </span>
+                      </div>
+                      <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-slate-100" aria-hidden="true">
+                        <div className={`h-full rounded-full ${over ? 'bg-rose-600' : 'bg-emerald-600'}`} style={{ width: `${percentage}%` }} />
+                      </div>
+                      <p className="mt-1 text-xs tabular-nums text-slate-600">{formatCurrency(item.spent, item.currency)} of {formatCurrency(item.amount, item.currency)} spent</p>
+                    </li>
+                  );
+                })}
               </ul>
             ) : <p className="text-sm text-slate-600">No budgets for this month.</p>}
           </div>

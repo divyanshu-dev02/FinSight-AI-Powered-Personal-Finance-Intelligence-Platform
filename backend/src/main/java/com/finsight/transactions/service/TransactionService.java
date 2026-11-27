@@ -10,18 +10,25 @@ import com.finsight.identity.entity.User;
 import com.finsight.transactions.dto.CreateTransactionRequest;
 import com.finsight.transactions.dto.CreateTransferRequest;
 import com.finsight.transactions.dto.TransactionResponse;
+import com.finsight.transactions.dto.TransactionFilter;
 import com.finsight.transactions.dto.UpdateTransactionRequest;
 import com.finsight.transactions.entity.Transaction;
 import com.finsight.transactions.entity.TransactionDirection;
 import com.finsight.transactions.entity.TransactionSource;
 import com.finsight.transactions.repository.TransactionRepository;
+import jakarta.persistence.criteria.JoinType;
+import jakarta.persistence.criteria.Predicate;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDate;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.UUID;
 
 @Service
@@ -52,6 +59,57 @@ public class TransactionService {
 
     public Page<TransactionResponse> getTransactionsForUser(User user, Pageable pageable) {
         return getTransactionsForUser(user, false, pageable);
+    }
+
+    public Page<TransactionResponse> getSpendingTransactions(User user, LocalDate start, LocalDate end, String currency, Pageable pageable) {
+        return transactionRepository.spendingTransactions(user, start, end, currency, pageable)
+                .map(TransactionResponse::fromEntity);
+    }
+
+    public Page<TransactionResponse> filterTransactions(User user, TransactionFilter filter, boolean includeArchived,
+            LocalDate chartStart, LocalDate chartEnd, String currency, Pageable pageable) {
+        Specification<Transaction> criteria = (transaction, query, cb) -> {
+            var conditions = new ArrayList<Predicate>();
+            conditions.add(cb.equal(transaction.get("user").get("id"), user.getId()));
+            var account = transaction.get("account");
+            boolean chartScope = chartStart != null;
+            if (!includeArchived || chartScope) conditions.add(cb.isTrue(account.get("active")));
+            if (filter.accountId() != null) conditions.add(cb.equal(account.get("id"), filter.accountId()));
+            if (filter.categoryId() != null) conditions.add(cb.equal(transaction.get("category").get("id"), filter.categoryId()));
+
+            var date = transaction.<LocalDate>get("transactionDate");
+            if (filter.from() != null) conditions.add(cb.greaterThanOrEqualTo(date, filter.from()));
+            if (filter.to() != null) conditions.add(cb.lessThanOrEqualTo(date, filter.to()));
+            if (chartScope) {
+                conditions.add(cb.between(date, chartStart, chartEnd));
+                conditions.add(cb.equal(transaction.get("currency"), currency));
+                conditions.add(cb.equal(transaction.get("direction"), TransactionDirection.DEBIT));
+                conditions.add(cb.isFalse(transaction.get("isTransfer")));
+            }
+            if (filter.type() != null) {
+                if (filter.type() == TransactionFilter.Type.TRANSFER) {
+                    conditions.add(cb.isTrue(transaction.get("isTransfer")));
+                } else {
+                    conditions.add(cb.isFalse(transaction.get("isTransfer")));
+                    conditions.add(cb.equal(transaction.get("direction"), filter.type() == TransactionFilter.Type.EXPENSE
+                            ? TransactionDirection.DEBIT : TransactionDirection.CREDIT));
+                }
+            }
+            if (filter.merchant() != null && !filter.merchant().isBlank()) {
+                conditions.add(cb.equal(cb.lower(cb.trim(transaction.get("merchant"))),
+                        cb.lower(cb.literal(filter.merchant().strip()))));
+            }
+            if (filter.search() != null && !filter.search().isBlank()) {
+                String text = filter.search().strip().toLowerCase(Locale.ROOT);
+                var category = transaction.join("category", JoinType.LEFT);
+                conditions.add(cb.or(
+                        cb.gt(cb.locate(cb.lower(transaction.get("description")), text), 0),
+                        cb.gt(cb.locate(cb.lower(transaction.get("merchant")), text), 0),
+                        cb.gt(cb.locate(cb.lower(category.get("name")), text), 0)));
+            }
+            return cb.and(conditions.toArray(Predicate[]::new));
+        };
+        return transactionRepository.findAll(criteria, pageable).map(TransactionResponse::fromEntity);
     }
 
     public TransactionResponse getTransactionById(UUID id, User user) {
