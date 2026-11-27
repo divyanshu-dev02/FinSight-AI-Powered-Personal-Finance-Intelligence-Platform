@@ -1,3 +1,4 @@
+import { ArrowLeftRight, ChevronDown, Download, Plus, Upload } from 'lucide-react';
 import { useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -258,46 +259,29 @@ export function TransactionsPage() {
       {/* Header & Quick Action Buttons */}
       <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between border-b border-gray-200 pb-5 gap-4">
         <div>
-          <h2 className="text-2xl font-bold leading-7 text-gray-900 sm:text-3xl">Transactions</h2>
+          <h1 className="page-title">Transactions</h1>
           <p className="mt-1 text-sm text-gray-500">
             View, search, filter, and track all your financial inflows, outflows, transfers, and statement imports.
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2.5">
           {/* Export Dropdown */}
-          <div className="relative group inline-block">
-            <button
-              disabled={isExporting}
-              className="inline-flex items-center gap-1.5 rounded-xl border border-gray-300 bg-white px-3.5 py-2.5 text-xs font-semibold text-gray-700 shadow-xs hover:bg-gray-50 transition-all cursor-pointer"
-            >
-              <span>📤</span>
-              <span>{isExporting ? 'Exporting...' : 'Export'}</span>
-              <span className="text-[10px] text-gray-400">▼</span>
-            </button>
-            <div className="absolute right-0 mt-1 hidden w-44 rounded-xl bg-white p-1.5 shadow-xl border border-gray-100 group-hover:block z-20">
-              <button
-                onClick={handleExportCsv}
-                className="w-full text-left rounded-lg px-3 py-2 text-xs font-medium text-gray-700 hover:bg-gray-50 hover:text-blue-600 flex items-center gap-2"
-              >
-                <span>📊</span>
-                <span>Download CSV</span>
-              </button>
-              <button
-                onClick={handleExportJson}
-                className="w-full text-left rounded-lg px-3 py-2 text-xs font-medium text-gray-700 hover:bg-gray-50 hover:text-blue-600 flex items-center gap-2"
-              >
-                <span>📄</span>
-                <span>Download JSON</span>
-              </button>
+          <details className="relative">
+            <summary className="list-none cursor-pointer rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 [&::-webkit-details-marker]:hidden">
+              <span className="inline-flex items-center gap-2"><Download size={16} aria-hidden="true" />{isExporting ? 'Exporting…' : 'Export'}<ChevronDown size={14} aria-hidden="true" /></span>
+            </summary>
+            <div className="absolute left-0 z-20 mt-1 w-44 rounded-xl border border-slate-200 bg-white p-1.5 shadow-lg">
+              <button type="button" disabled={isExporting} onClick={handleExportCsv} className="block w-full rounded-lg px-3 py-2 text-left text-sm hover:bg-slate-50">Download CSV</button>
+              <button type="button" disabled={isExporting} onClick={handleExportJson} className="block w-full rounded-lg px-3 py-2 text-left text-sm hover:bg-slate-50">Download JSON</button>
             </div>
-          </div>
+          </details>
 
           {/* Import Statement */}
           <button
             onClick={() => setIsImportModalOpen(true)}
             className="inline-flex items-center gap-1.5 rounded-xl border border-blue-200 bg-blue-50/70 px-3.5 py-2.5 text-xs font-semibold text-blue-700 shadow-xs hover:bg-blue-100 transition-all cursor-pointer"
           >
-            <span>📥</span>
+            <Upload size={16} aria-hidden="true" />
             <span>Import Statement</span>
           </button>
 
@@ -310,7 +294,7 @@ export function TransactionsPage() {
             }}
             className="inline-flex items-center gap-1.5 rounded-xl border border-indigo-200 bg-indigo-50/70 px-3.5 py-2.5 text-xs font-semibold text-indigo-700 shadow-xs hover:bg-indigo-100 transition-all cursor-pointer"
           >
-            <span>⇄</span>
+            <ArrowLeftRight size={16} aria-hidden="true" />
             <span>Transfer Funds</span>
           </button>
 
@@ -323,7 +307,7 @@ export function TransactionsPage() {
             }}
             className="inline-flex items-center gap-1.5 rounded-xl bg-blue-600 px-4 py-2.5 text-xs font-semibold text-white shadow-xs hover:bg-blue-700 transition-all cursor-pointer"
           >
-            <span>+</span>
+            <Plus size={16} aria-hidden="true" />
             <span>Add Transaction</span>
           </button>
         </div>

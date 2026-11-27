@@ -140,7 +140,7 @@ export function AccountsPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between border-b border-gray-200 pb-5 gap-4">
         <div>
-          <h2 className="text-2xl font-bold leading-7 text-gray-900 sm:text-3xl">Financial Accounts</h2>
+          <h1 className="page-title">Financial Accounts</h1>
           <p className="mt-1 text-sm text-gray-500">
             Manage your accounts. Assets add to Net Worth; loans and liabilities are subtracted automatically.
           </p>

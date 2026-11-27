@@ -46,6 +46,7 @@ export function CopilotPage() {
 
   return (
     <section className="mx-auto max-w-3xl space-y-5">
+      <header><h1 className="page-title">Copilot</h1><p className="mt-1 text-sm text-slate-600">Ask about your finances or use a spending shortcut.</p></header>
       <CopilotChat month={month} comparable={comparable} />
       <div className="flex flex-wrap items-end justify-between gap-4">
         <p className="text-sm text-slate-600">Spending shortcuts for active accounts.</p>

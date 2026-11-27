@@ -1,15 +1,16 @@
-import { ReactNode } from 'react';
+import { lazy, ReactNode } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from '@/features/auth/AuthContext';
 import { LoginPage } from '@/features/auth/LoginPage';
 import { RegisterPage } from '@/features/auth/RegisterPage';
-import { DashboardPage } from '@/features/dashboard/DashboardPage';
-import { AccountsPage } from '@/features/accounts/AccountsPage';
-import { TransactionsPage } from '@/features/transactions/TransactionsPage';
-import { CopilotPage } from '@/features/copilot/CopilotPage';
-import { PlanningPage } from '@/features/planning/PlanningPage';
 import { AppLayout } from '@/app/AppLayout';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
+
+const DashboardPage = lazy(() => import('@/features/dashboard/DashboardPage').then(module => ({ default: module.DashboardPage })));
+const AccountsPage = lazy(() => import('@/features/accounts/AccountsPage').then(module => ({ default: module.AccountsPage })));
+const TransactionsPage = lazy(() => import('@/features/transactions/TransactionsPage').then(module => ({ default: module.TransactionsPage })));
+const CopilotPage = lazy(() => import('@/features/copilot/CopilotPage').then(module => ({ default: module.CopilotPage })));
+const PlanningPage = lazy(() => import('@/features/planning/PlanningPage').then(module => ({ default: module.PlanningPage })));
 
 function ProtectedRoute({ children }: { children: ReactNode }) {
   const { isAuthenticated, isLoading } = useAuth();

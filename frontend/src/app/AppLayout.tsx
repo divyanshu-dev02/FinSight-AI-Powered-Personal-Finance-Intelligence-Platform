@@ -1,88 +1,64 @@
-import { Outlet, Link, useLocation } from 'react-router-dom';
+import { Suspense } from 'react';
+import { ArrowLeftRight, CalendarDays, LayoutDashboard, LogOut, Sparkles, Wallet } from 'lucide-react';
+import { Link, NavLink, Outlet, useLocation } from 'react-router-dom';
+import { Brand } from '@/components/Brand';
+import { LoadingSpinner } from '@/components/LoadingSpinner';
 import { useAuth } from '@/features/auth/AuthContext';
 
 const navItems = [
-  { label: 'Dashboard', path: '/dashboard', icon: '📊' },
-  { label: 'Accounts', path: '/accounts', icon: '🏦' },
-  { label: 'Transactions', path: '/transactions', icon: '💸' },
-  { label: 'Planning', path: '/planning', icon: '📋' },
-  { label: 'Copilot', path: '/copilot', icon: '💡' },
+  { label: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
+  { label: 'Accounts', path: '/accounts', icon: Wallet },
+  { label: 'Transactions', path: '/transactions', icon: ArrowLeftRight },
+  { label: 'Planning', path: '/planning', icon: CalendarDays },
+  { label: 'Copilot', path: '/copilot', icon: Sparkles },
 ];
 
 export function AppLayout() {
   const { user, logout } = useAuth();
-  const location = useLocation();
+  const { pathname } = useLocation();
+  const activePage = navItems.find(item => pathname === item.path)?.label ?? 'Dashboard';
+  const initials = (user?.displayName?.trim() || 'User').split(/\s+/).slice(0, 2).map(word => word[0]).join('');
 
   return (
-    <div className="flex min-h-screen bg-slate-50/70">
-      {/* Sidebar */}
-      <aside className="hidden w-64 border-r border-gray-200/80 bg-white lg:block shadow-xs">
-        <div className="flex h-16 items-center gap-3 border-b border-gray-100 px-6">
-          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-600 text-white font-extrabold text-lg shadow-sm">
-            F
-          </div>
-          <span className="text-xl font-extrabold tracking-tight text-gray-900">FinSight</span>
-        </div>
-        <nav className="mt-4 space-y-1 px-3">
-          {navItems.map((item) => {
-            const isActive = location.pathname.startsWith(item.path);
-            return (
-              <Link
-                key={item.path}
-                to={item.path}
-                className={`flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-sm font-semibold transition-all ${
-                  isActive
-                    ? 'bg-blue-50 text-blue-700 shadow-xs'
-                    : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
-                }`}
-              >
-                <span className="text-base">{item.icon}</span>
-                {item.label}
-              </Link>
-            );
-          })}
+    <div className="workspace">
+      <a className="sr-only focus:not-sr-only focus:fixed focus:z-50 focus:bg-white focus:p-3" href="#main-content">
+        Skip to content
+      </a>
+      <aside className="workspace-sidebar">
+        <Link to="/dashboard" className="sidebar-brand" aria-label="FinSight dashboard"><Brand /></Link>
+        <nav aria-label="Main navigation" className="workspace-nav">
+          {navItems.map(({ label, path, icon: Icon }) => (
+            <NavLink key={path} to={path} className="workspace-nav-link" end>
+              <Icon size={19} strokeWidth={1.8} aria-hidden="true" />
+              <span>{label}</span>
+            </NavLink>
+          ))}
         </nav>
+        <div className="sidebar-profile">
+          <span className="profile-avatar" aria-hidden="true">{initials}</span>
+          <span className="truncate">{user?.displayName}</span>
+          <button type="button" aria-label="Sign out" title="Sign out" className="sidebar-logout" onClick={() => void logout()}>
+            <LogOut size={18} aria-hidden="true" />
+          </button>
+        </div>
       </aside>
 
-      {/* Main content */}
-      <div className="flex min-w-0 flex-1 flex-col">
-        {/* Top bar */}
-        <header className="flex h-16 items-center justify-between border-b border-gray-200/80 bg-white px-6 shadow-2xs">
-          <h1 className="text-lg font-bold text-gray-800">
-            {navItems.find((item) => location.pathname.startsWith(item.path))?.label ?? 'Dashboard'}
-          </h1>
-          <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2">
-              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-100 text-blue-700 font-bold text-xs">
-                {(user?.displayName || 'U').charAt(0).toUpperCase()}
-              </div>
-              <span className="text-sm font-medium text-gray-700">{user?.displayName}</span>
-            </div>
-            <button
-              onClick={() => logout()}
-              className="rounded-xl px-3 py-1.5 text-xs font-semibold text-gray-600 hover:bg-gray-100 transition-colors cursor-pointer"
-            >
-              Sign Out
+      <div className="workspace-main">
+        <header className="workspace-header">
+          <Link to="/dashboard" className="mobile-brand" aria-label="FinSight dashboard"><Brand /></Link>
+          <span className="workspace-breadcrumb"><span>Workspace</span><span aria-hidden="true">/</span><strong>{activePage}</strong></span>
+          <div className="workspace-user">
+            <span className="profile-avatar" aria-hidden="true">{initials}</span>
+            <span className="hidden max-w-40 truncate sm:inline">{user?.displayName}</span>
+            <button type="button" aria-label="Sign out" title="Sign out" className="mobile-logout" onClick={() => void logout()}>
+              <LogOut size={18} aria-hidden="true" />
             </button>
           </div>
         </header>
-
-        <nav aria-label="Main navigation" className="flex flex-wrap gap-1 border-b border-slate-200 bg-white px-2 lg:hidden">
-          {navItems.map(item => (
-            <Link
-              key={item.path}
-              to={item.path}
-              aria-current={location.pathname === item.path ? 'page' : undefined}
-              className="rounded px-2 py-3 text-sm text-slate-700 aria-[current=page]:font-semibold aria-[current=page]:text-blue-700"
-            >
-              {item.label}
-            </Link>
-          ))}
-        </nav>
-
-        {/* Page content */}
-        <main className="flex-1 overflow-auto p-6 md:p-8">
-          <Outlet />
+        <main id="main-content" tabIndex={-1} className="workspace-content">
+          <Suspense fallback={<div className="grid min-h-48 place-items-center" role="status"><LoadingSpinner /><span className="sr-only">Loading page</span></div>}>
+            <Outlet />
+          </Suspense>
         </main>
       </div>
     </div>

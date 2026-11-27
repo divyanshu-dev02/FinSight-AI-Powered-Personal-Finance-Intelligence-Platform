@@ -1,3 +1,4 @@
+import { AuthShell } from './AuthShell';
 import { useEffect, useState, type FormEvent } from 'react';
 import { api, type ApiResponse } from '@/lib/api';
 import { useForm } from 'react-hook-form';
@@ -76,19 +77,9 @@ export function LoginPage() {
 
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-slate-50 via-blue-50/20 to-slate-100 px-4 py-12 sm:px-6 lg:px-8">
-      <div className="w-full max-w-md space-y-6 rounded-2xl bg-white p-8 shadow-xl border border-gray-100">
-        <div className="text-center">
-          <div className="inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-600 text-white font-extrabold text-2xl shadow-md mb-2">
-            F
-          </div>
-          <h1 className="text-3xl font-extrabold tracking-tight text-gray-900">FinSight</h1>
-          <p className="mt-1 text-sm text-gray-500 font-medium">Personal Finance Intelligence Platform</p>
-          <h2 className="mt-4 text-lg font-semibold text-gray-800">Sign in to your account</h2>
-        </div>
-
+    <AuthShell title="Sign in to your account" description="Open your personal finance workspace.">
         {errorMessage && (
-          <div className="rounded-xl bg-red-50 p-4 border border-red-200">
+          <div role="alert" className="rounded-xl bg-red-50 p-4 border border-red-200">
             <p className="text-xs text-red-700 leading-relaxed">{errorMessage}</p>
           </div>
         )}
@@ -112,8 +103,9 @@ export function LoginPage() {
 
         <form className="space-y-4" onSubmit={useDemo ? event => void enterDemo(event) : handleSubmit(onSubmit)}>
           <div>
-            <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wider">Email address</label>
+            <label htmlFor="login-email-address" className="block text-xs font-semibold text-gray-700 uppercase tracking-wider">Email address</label>
             <input
+              id="login-email-address"
               type="email"
               autoComplete="email"
               {...register('email', { onChange: () => setUseDemo(false) })}
@@ -129,8 +121,9 @@ export function LoginPage() {
             <p className="text-sm text-gray-600">Demo sign-in is ready. Select Sign In to open the sample account.</p>
           ) : (
             <div>
-              <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wider">Password</label>
+              <label htmlFor="login-password" className="block text-xs font-semibold text-gray-700 uppercase tracking-wider">Password</label>
               <input
+              id="login-password"
                 type="password"
                 autoComplete="current-password"
                 {...register('password')}
@@ -159,7 +152,6 @@ export function LoginPage() {
             Create an account
           </Link>
         </div>
-      </div>
-    </div>
+    </AuthShell>
   );
 }

@@ -8,3 +8,132 @@
   }
 }
 
+
+@layer base {
+  :root {
+    font-family: "Inter", "Aptos", system-ui, sans-serif;
+    color: #17243d;
+    background: #f3f6fb;
+    font-synthesis: none;
+  }
+
+  body { @apply bg-transparent text-slate-900; }
+  :focus-visible { outline: 2px solid #3164e8; outline-offset: 3px; }
+}
+
+@layer components {
+  .brand { @apply inline-flex items-center gap-3 text-[1.35rem] font-bold tracking-tight; }
+  .brand-mark { @apply grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-blue-600 text-white; }
+
+  .workspace { @apply min-h-screen bg-[#f3f6fb] lg:grid lg:grid-cols-[232px_minmax(0,1fr)]; }
+  .workspace-sidebar { @apply fixed inset-x-0 bottom-0 z-30 border-t border-slate-200 bg-white lg:sticky lg:top-0 lg:flex lg:h-dvh lg:flex-col lg:border-0 lg:bg-[#101d35] lg:text-white; padding-bottom: env(safe-area-inset-bottom); }
+  .sidebar-brand { @apply hidden px-6 pb-10 pt-7 lg:block; }
+  .workspace-nav { @apply mx-auto grid max-w-xl grid-cols-5 gap-1 px-2 py-1.5 lg:mx-0 lg:block lg:max-w-none lg:space-y-2 lg:px-4 lg:py-0; }
+  .workspace-nav-link { @apply relative flex min-h-12 min-w-0 flex-col items-center justify-center gap-1 rounded-xl px-0.5 text-[clamp(0.625rem,2.65vw,0.75rem)] font-semibold text-slate-600 transition-colors hover:bg-slate-100 lg:min-h-12 lg:flex-row lg:justify-start lg:gap-3 lg:px-3.5 lg:text-sm lg:text-slate-300 lg:hover:bg-white/10 lg:hover:text-white; }
+  .workspace-nav-link[aria-current="page"] { @apply bg-blue-50 text-blue-700 lg:bg-[#21375c] lg:text-white; }
+  .workspace-nav-link[aria-current="page"]::before { content: ""; @apply absolute inset-y-3 left-0 hidden w-[3px] rounded-r-full bg-blue-400 lg:block; }
+  .sidebar-profile { @apply mx-4 mb-5 mt-auto hidden items-center gap-2.5 rounded-xl border border-white/10 bg-white/5 p-2 text-sm font-semibold text-white lg:flex; }
+  .profile-avatar { @apply grid h-8 w-8 shrink-0 place-items-center rounded-full bg-blue-100 text-[11px] font-bold uppercase text-blue-800; }
+  .sidebar-logout { @apply ml-auto grid h-8 w-8 shrink-0 place-items-center rounded-lg text-slate-300 hover:bg-white/10 hover:text-white; }
+  .workspace-main { @apply min-w-0; }
+  .workspace-header { @apply flex min-h-[68px] items-center justify-between gap-4 border-b border-slate-200/80 bg-white px-4 sm:px-7 lg:px-9; }
+  .workspace-breadcrumb { @apply hidden items-center gap-3 text-sm text-slate-500 lg:flex; }
+  .workspace-breadcrumb strong { @apply font-semibold text-slate-800; }
+  .workspace-user { @apply flex min-w-0 items-center gap-2 text-sm font-semibold text-slate-700; }
+  .workspace-user .profile-avatar { @apply hidden sm:grid; }
+  .mobile-brand { @apply lg:hidden; }
+  .mobile-logout { @apply grid h-10 w-10 shrink-0 place-items-center rounded-xl text-slate-600 hover:bg-slate-100 lg:hidden; }
+  .workspace-content { @apply mx-auto max-w-[1540px] p-4 sm:p-7 lg:px-9 lg:py-8; padding-bottom: calc(5.25rem + env(safe-area-inset-bottom)); }
+  @media (min-width: 1024px) { .workspace-content { padding-bottom: 2rem; } }
+
+  .page-title { @apply text-2xl font-bold tracking-tight text-[#17243d] sm:text-3xl; }
+  .dashboard { @apply mx-auto max-w-7xl space-y-7; }
+  .dashboard-hero { @apply relative isolate overflow-hidden rounded-[1.5rem] bg-[#173e9f] px-5 py-7 text-white sm:px-8 sm:py-9; background-image: linear-gradient(115deg, #17347d 6%, #2759d5 95%); }
+  .hero-content { @apply relative z-10 max-w-xl; }
+  .hero-content h1 { @apply text-[clamp(1.65rem,4vw,2.55rem)] font-bold leading-tight tracking-[-0.04em]; overflow-wrap: anywhere; }
+  .hero-content p { @apply mt-2 max-w-md text-sm leading-relaxed text-blue-100 sm:text-base; }
+  .hero-actions { @apply mt-6 flex flex-wrap gap-2.5; }
+  .hero-actions a { @apply inline-flex min-h-10 items-center gap-2 rounded-lg px-3.5 py-2 text-[0.82rem] font-semibold transition-colors; }
+  .hero-primary { @apply bg-white text-blue-800 hover:bg-blue-50; }
+  .hero-secondary { @apply border border-white/35 text-white hover:bg-white/10; }
+  .hero-art { @apply pointer-events-none absolute inset-y-0 right-0 hidden w-64 sm:block xl:w-96; }
+  .hero-orbit { @apply absolute rounded-full border border-blue-200/25; top: 50%; left: 59%; transform: translate(-50%, -50%); }
+  .hero-orbit-outer { width: 365px; aspect-ratio: 1; }
+  .hero-orbit-inner { width: 275px; aspect-ratio: 1; background: linear-gradient(150deg, #a3baff15, #e4eeff04); }
+  .hero-tiles { @apply absolute inset-0 flex items-center justify-center gap-2.5; transform: rotate(-12deg); }
+  .hero-tiles span { @apply grid h-12 w-12 place-items-center rounded-2xl border border-white/25 bg-white/10 text-blue-100 xl:h-16 xl:w-16; }
+  .hero-tiles span:nth-child(2) { @apply -translate-y-7 bg-white/20; }
+  .hero-tiles span:nth-child(3) { @apply -translate-y-14; }
+  @media (max-width: 850px) { .hero-art { opacity: .42; } }
+
+  .overview { @apply space-y-4; }
+  .dashboard-section-heading { @apply flex flex-wrap items-end justify-between gap-3; }
+  .dashboard-section-heading h2 { @apply text-xl font-bold tracking-tight text-[#17243d] sm:text-2xl; }
+  .dashboard-section-heading p, .panel-heading p { @apply mt-1 text-sm leading-snug text-slate-600; }
+  .month-tools { @apply flex flex-wrap items-center gap-3; }
+  .month-picker { @apply flex items-center rounded-xl border border-slate-200 bg-white px-1 text-sm font-semibold text-slate-700; }
+  .month-picker button { @apply grid h-10 w-9 shrink-0 place-items-center rounded-lg hover:bg-slate-100; }
+  .month-input { @apply relative flex min-h-10 items-center justify-center gap-2 px-1.5; }
+  .month-input input { @apply absolute inset-0 h-full w-full cursor-pointer opacity-0; }
+  .month-input input::-webkit-calendar-picker-indicator { @apply absolute inset-0 h-full w-full cursor-pointer; }
+  .month-input:focus-within { @apply rounded outline outline-2 outline-blue-600; }
+  .dashboard-text-button { @apply font-semibold text-blue-700 hover:underline; }
+  .dashboard-error { @apply rounded-xl bg-red-50 p-3 text-sm text-red-800; }
+  .dashboard-error button { @apply font-semibold underline; }
+  .metric-grid { @apply grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4; }
+  .metric-card, .dashboard-panel { @apply min-w-0 rounded-[1.15rem] border border-slate-200/90 bg-white; box-shadow: 0 2px 5px #17243d06; }
+  .metric-card { @apply p-3.5 sm:p-5; }
+  .metric-card dt { @apply flex items-center gap-2.5 text-xs font-semibold text-slate-700 sm:text-sm; }
+  .metric-icon { @apply grid h-8 w-8 shrink-0 place-items-center rounded-lg; }
+  .metric-blue { @apply bg-blue-50 text-blue-700; }
+  .metric-green { @apply bg-emerald-50 text-emerald-700; }
+  .metric-orange { @apply bg-orange-50 text-orange-700; }
+  .metric-purple { @apply bg-violet-50 text-violet-700; }
+  .metric-card dd { @apply mt-3 text-[clamp(0.95rem,3vw,1.65rem)] font-bold leading-tight tracking-tight text-[#17243d] tabular-nums; overflow-wrap: anywhere; }
+  .metric-card p { @apply mt-1.5 text-xs leading-snug text-slate-600; }
+  .dashboard-grid { @apply grid min-w-0 gap-5 xl:grid-cols-[1.06fr_1fr]; align-items: start; }
+  .dashboard-panel { @apply p-4 sm:p-5; }
+  .recent-panel { @apply xl:col-span-2; }
+  .panel-heading { @apply flex flex-wrap items-start justify-between gap-2 border-b border-slate-100 pb-4; }
+  .panel-heading h2 { @apply text-base font-bold tracking-tight text-[#17243d] sm:text-lg; }
+  .panel-link { @apply inline-flex items-center gap-1 text-sm font-semibold text-blue-700 hover:underline; }
+  .panel-empty { @apply py-4 text-sm text-slate-600; }
+  .cash-chart { @apply space-y-5 pt-4; }
+  .cash-legend { @apply flex flex-wrap gap-x-4 gap-y-1 text-xs font-medium text-slate-600; }
+  .cash-legend span { @apply flex items-center gap-1.5; }
+  .cash-legend i, .category-list i { @apply inline-block h-2 w-2 shrink-0 rounded-full; }
+  .cash-legend span:first-child i { @apply bg-blue-600; }
+  .cash-legend span:last-child i { @apply bg-[#6d96ee]; }
+  .cash-period h3 { @apply mb-2 text-xs font-semibold text-slate-700; }
+  .cash-bars { @apply space-y-2.5; }
+  .cash-bar-row { @apply grid grid-cols-[minmax(2rem,1fr)_auto] items-center gap-2.5 sm:grid-cols-[minmax(2rem,1fr)_minmax(6rem,auto)]; }
+  .cash-bar-row dd { @apply text-right text-xs font-semibold tabular-nums text-slate-700; }
+  .cash-track, .category-track { @apply block h-2.5 overflow-hidden rounded-full bg-slate-100; }
+  .cash-track span, .category-track span { @apply block h-full rounded-full; }
+  .cash-bar-row:first-child .cash-track span { @apply bg-blue-600; }
+  .cash-bar-row:last-child .cash-track span { @apply bg-[#6d96ee]; }
+  .category-list { @apply space-y-3 pt-4; }
+  .category-list li > div:first-child { @apply mb-1.5 flex flex-wrap justify-between gap-x-2 text-xs text-slate-700; }
+  .category-list li > div:first-child span { @apply flex items-center gap-2; }
+  .category-list strong { @apply font-semibold tabular-nums; }
+  .category-track { @apply h-1.5; }
+  .recent-list { @apply divide-y divide-slate-100; }
+  .recent-list li { @apply grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 py-3 sm:gap-3; }
+  .recent-list strong, .recent-list small { @apply block; overflow-wrap: anywhere; }
+  .recent-list strong { @apply text-sm font-semibold text-[#17243d]; }
+  .recent-list small { @apply mt-0.5 text-xs text-slate-600; }
+  .recent-amount { @apply text-right text-xs font-semibold tabular-nums sm:text-sm; }
+
+  .auth-shell { @apply mx-auto grid min-h-dvh max-w-[1540px] bg-white md:grid-cols-[minmax(0,0.9fr)_minmax(0,1fr)]; }
+  .auth-panel { @apply relative hidden min-h-full flex-col justify-between overflow-hidden bg-[#13295f] px-[clamp(2rem,5vw,5rem)] py-9 text-white md:flex; background-image: radial-gradient(ellipse at 100% 100%, #2f63d9, transparent 65%); }
+  .auth-panel::after { content: ""; @apply pointer-events-none absolute -bottom-44 -right-44 h-[540px] w-[540px] rounded-full border border-blue-200/20; box-shadow: 0 0 0 52px #aed0ff10, 0 0 0 105px #aed0ff08; }
+  .auth-panel-content { @apply relative z-10 my-auto py-12; }
+  .auth-panel-title { @apply max-w-sm text-[clamp(2.15rem,5vw,4.5rem)] font-bold leading-[1.05] tracking-[-0.055em]; }
+  .auth-panel ul { @apply mt-8 space-y-4 text-sm text-blue-100 lg:text-base; }
+  .auth-panel li { @apply flex items-center gap-3; }
+  .auth-form-area { @apply grid place-items-center px-5 py-9 sm:px-10; }
+  .auth-form { @apply w-full max-w-md space-y-5; }
+  .auth-mobile-brand { @apply mb-7 md:hidden; }
+  .auth-form h1 { @apply text-3xl font-bold tracking-tight text-[#17243d] sm:text-4xl; }
+  .auth-form .auth-description { @apply mt-1 pb-2 text-sm text-slate-600; }
+}

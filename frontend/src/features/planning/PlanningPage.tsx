@@ -42,6 +42,7 @@ export function PlanningPage() {
 
   return (
     <div className="mx-auto max-w-5xl space-y-6">
+      <header><h1 className="page-title">Planning</h1><p className="mt-1 text-sm text-slate-600">Manage monthly budgets, savings goals, and recurring payments.</p></header>
       <section className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-6" aria-labelledby="plan-budgets">
         <div className="flex flex-wrap items-end justify-between gap-2">
           <div>

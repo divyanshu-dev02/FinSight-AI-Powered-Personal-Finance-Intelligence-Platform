@@ -1,3 +1,4 @@
+import { AuthShell } from './AuthShell';
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -48,24 +49,18 @@ export function RegisterPage() {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gray-50 px-4 py-12 sm:px-6 lg:px-8">
-      <div className="w-full max-w-md space-y-8 rounded-2xl bg-white p-8 shadow-sm border border-gray-200">
-        <div className="text-center">
-          <h1 className="text-3xl font-extrabold tracking-tight text-gray-900">FinSight</h1>
-          <p className="mt-2 text-sm text-gray-600">Personal Finance Intelligence Platform</p>
-          <h2 className="mt-6 text-xl font-semibold text-gray-800">Create your account</h2>
-        </div>
-
+    <AuthShell title="Create your account" description="Set up your personal finance workspace.">
         {errorMessage && (
-          <div className="rounded-lg bg-red-50 p-4 border border-red-200">
+          <div role="alert" className="rounded-lg bg-red-50 p-4 border border-red-200">
             <p className="text-sm text-red-700">{errorMessage}</p>
           </div>
         )}
 
         <form className="mt-6 space-y-5" onSubmit={handleSubmit(onSubmit)}>
           <div>
-            <label className="block text-sm font-medium text-gray-700">Full Name</label>
+            <label htmlFor="register-full-name" className="block text-sm font-medium text-gray-700">Full Name</label>
             <input
+              id="register-full-name"
               type="text"
               autoComplete="name"
               {...register('displayName')}
@@ -78,8 +73,9 @@ export function RegisterPage() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700">Email address</label>
+            <label htmlFor="register-email-address" className="block text-sm font-medium text-gray-700">Email address</label>
             <input
+              id="register-email-address"
               type="email"
               autoComplete="email"
               {...register('email')}
@@ -92,8 +88,9 @@ export function RegisterPage() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700">Password</label>
+            <label htmlFor="register-password" className="block text-sm font-medium text-gray-700">Password</label>
             <input
+              id="register-password"
               type="password"
               autoComplete="new-password"
               {...register('password')}
@@ -106,8 +103,9 @@ export function RegisterPage() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700">Confirm Password</label>
+            <label htmlFor="register-confirm-password" className="block text-sm font-medium text-gray-700">Confirm Password</label>
             <input
+              id="register-confirm-password"
               type="password"
               autoComplete="new-password"
               {...register('confirmPassword')}
@@ -135,8 +133,7 @@ export function RegisterPage() {
             Sign in
           </Link>
         </div>
-      </div>
-    </div>
+    </AuthShell>
   );
 }
 
