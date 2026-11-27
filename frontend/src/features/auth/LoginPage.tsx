@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
+import { api, type ApiResponse } from '@/lib/api';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -14,13 +15,32 @@ const loginSchema = z.object({
 type LoginFormData = z.infer<typeof loginSchema>;
 
 export function LoginPage() {
-  const { login } = useAuth();
+  const { login, loginDemo } = useAuth();
   const navigate = useNavigate();
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  const [demoEmail, setDemoEmail] = useState<string>();
+  const [useDemo, setUseDemo] = useState(false);
+  const [demoPending, setDemoPending] = useState(false);
+
+  useEffect(() => {
+    const request = new AbortController();
+    api.get<ApiResponse<{ email?: string }>>('/auth/demo', { signal: request.signal })
+      .then(response => {
+        if (!request.signal.aborted) setDemoEmail(response.data.data.email);
+      })
+      .catch(() => {
+        if (!request.signal.aborted) setDemoEmail(undefined);
+      });
+    return () => request.abort();
+  }, []);
 
   const {
     register,
     handleSubmit,
+    setValue,
+    resetField,
+    clearErrors,
     formState: { errors, isSubmitting },
   } = useForm<LoginFormData>({
     resolver: zodResolver(loginSchema),
@@ -40,6 +60,21 @@ export function LoginPage() {
     }
   };
 
+  const enterDemo = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setErrorMessage(null);
+    setDemoPending(true);
+    try {
+      await loginDemo();
+      navigate('/dashboard');
+    } catch {
+      setErrorMessage('Could not open the demo. Try again.');
+    } finally {
+      setDemoPending(false);
+    }
+  };
+
+
   return (
     <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-slate-50 via-blue-50/20 to-slate-100 px-4 py-12 sm:px-6 lg:px-8">
       <div className="w-full max-w-md space-y-6 rounded-2xl bg-white p-8 shadow-xl border border-gray-100">
@@ -58,13 +93,30 @@ export function LoginPage() {
           </div>
         )}
 
-        <form className="space-y-4" onSubmit={handleSubmit(onSubmit)}>
+        {demoEmail && (
+          <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-blue-200 bg-blue-50 p-3 text-sm text-blue-900">
+            <span className="font-semibold">Demo account</span>
+            <button type="button" disabled={demoPending || isSubmitting}
+              className="font-semibold text-blue-700 underline disabled:opacity-50"
+              onClick={() => {
+                setValue('email', demoEmail);
+                resetField('password', { defaultValue: '' });
+                clearErrors();
+                setErrorMessage(null);
+                setUseDemo(true);
+              }}>
+              Auto-fill Demo Credentials
+            </button>
+          </div>
+        )}
+
+        <form className="space-y-4" onSubmit={useDemo ? event => void enterDemo(event) : handleSubmit(onSubmit)}>
           <div>
             <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wider">Email address</label>
             <input
               type="email"
               autoComplete="email"
-              {...register('email')}
+              {...register('email', { onChange: () => setUseDemo(false) })}
               className="mt-1.5 block w-full rounded-xl border border-gray-300 px-3.5 py-2.5 text-gray-900 shadow-xs focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100 text-sm transition-all"
               placeholder="you@example.com"
             />
@@ -73,26 +125,30 @@ export function LoginPage() {
             )}
           </div>
 
-          <div>
-            <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wider">Password</label>
-            <input
-              type="password"
-              autoComplete="current-password"
-              {...register('password')}
-              className="mt-1.5 block w-full rounded-xl border border-gray-300 px-3.5 py-2.5 text-gray-900 shadow-xs focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100 text-sm transition-all"
-              placeholder="••••••••"
-            />
-            {errors.password && (
-              <p className="mt-1 text-xs text-red-600">{errors.password.message}</p>
-            )}
-          </div>
+          {useDemo ? (
+            <p className="text-sm text-gray-600">Demo sign-in is ready. Select Sign In to open the sample account.</p>
+          ) : (
+            <div>
+              <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wider">Password</label>
+              <input
+                type="password"
+                autoComplete="current-password"
+                {...register('password')}
+                className="mt-1.5 block w-full rounded-xl border border-gray-300 px-3.5 py-2.5 text-gray-900 shadow-xs focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100 text-sm transition-all"
+                placeholder="••••••••"
+              />
+              {errors.password && (
+                <p className="mt-1 text-xs text-red-600">{errors.password.message}</p>
+              )}
+            </div>
+          )}
 
           <button
             type="submit"
-            disabled={isSubmitting}
+            disabled={isSubmitting || demoPending}
             className="flex w-full justify-center items-center rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 transition-all cursor-pointer"
           >
-            {isSubmitting ? <LoadingSpinner size="sm" className="mr-2 border-white" /> : null}
+            {isSubmitting || demoPending ? <LoadingSpinner size="sm" className="mr-2 border-white" /> : null}
             Sign In
           </button>
         </form>

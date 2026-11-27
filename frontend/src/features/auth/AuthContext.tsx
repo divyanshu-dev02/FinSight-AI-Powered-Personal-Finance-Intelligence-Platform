@@ -6,6 +6,7 @@ interface AuthContextType {
   user: User | null;
   isAuthenticated: boolean;
   isLoading: boolean;
+  loginDemo: () => Promise<void>;
   login: (email: string, password: string) => Promise<void>;
   register: (email: string, password: string, displayName: string) => Promise<void>;
   logout: () => Promise<void>;
@@ -75,31 +76,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     initAuth();
   }, []);
 
-  const login = async (email: string, password: string) => {
-    const response = await api.post<ApiResponse<AuthResponse>>('/auth/login', {
-      email,
-      password,
-    });
-
-    const { accessToken, refreshToken, user: authUser } = response.data.data;
+  const acceptSession = ({ accessToken, refreshToken, user: authUser }: AuthResponse) => {
     localStorage.setItem('accessToken', accessToken);
     localStorage.setItem('refreshToken', refreshToken);
     localStorage.setItem('user', JSON.stringify(authUser));
     setUser(authUser);
   };
 
-  const register = async (email: string, password: string, displayName: string) => {
-    const response = await api.post<ApiResponse<AuthResponse>>('/auth/register', {
-      email,
-      password,
-      displayName,
-    });
+  const login = async (email: string, password: string) => {
+    const response = await api.post<ApiResponse<AuthResponse>>('/auth/login', { email, password });
+    acceptSession(response.data.data);
+  };
 
-    const { accessToken, refreshToken, user: authUser } = response.data.data;
-    localStorage.setItem('accessToken', accessToken);
-    localStorage.setItem('refreshToken', refreshToken);
-    localStorage.setItem('user', JSON.stringify(authUser));
-    setUser(authUser);
+  const loginDemo = async () => {
+    const response = await api.post<ApiResponse<AuthResponse>>('/auth/demo');
+    acceptSession(response.data.data);
+  };
+
+  const register = async (email: string, password: string, displayName: string) => {
+    const response = await api.post<ApiResponse<AuthResponse>>('/auth/register', { email, password, displayName });
+    acceptSession(response.data.data);
   };
 
   const logout = async () => {
@@ -126,6 +122,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         isAuthenticated: !!user,
         isLoading,
         login,
+        loginDemo,
         register,
         logout,
       }}

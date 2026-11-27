@@ -18,8 +18,8 @@ import java.util.UUID;
 @Profile("local")
 class LocalDemoCredentials implements ApplicationRunner {
 
-    private static final UUID DEMO_ID = UUID.fromString("11111111-1111-1111-1111-111111111111");
-    private static final String DEMO_EMAIL = "divyanshu@finsight.local";
+    static final UUID DEMO_ID = UUID.fromString("11111111-1111-1111-1111-111111111111");
+    static final String DEMO_EMAIL = "divyanshu@finsight.local";
 
     private final UserRepository users;
     private final PasswordEncoder passwords;

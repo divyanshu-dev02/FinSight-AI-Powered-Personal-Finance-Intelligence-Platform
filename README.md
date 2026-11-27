@@ -127,8 +127,10 @@ After the local backend applies its database migrations, run `make demo-seed`
 to populate the built-in demo account with synthetic transactions, budgets,
 savings goals, and recurring commitments. To sign in as
 `divyanshu@finsight.local`, set a private `DEMO_PASSWORD` of 16–72 UTF-8 bytes
-in the ignored `.env.local` file and restart the local backend. The demo login
-is disabled outside the local setup. The seed targets the local Docker
+in the ignored `.env.local` file and restart the local backend. Set
+`DEMO_LOGIN_ENABLED=true` in the same file to show **Auto-fill Demo Credentials**
+on the local sign-in page. Select it, then **Sign In**. Demo autofill is
+limited to the local profile and loopback requests. The seed targets the local Docker
 database and can be rerun without duplicating or replacing existing records.
 
 Try asking Copilot, “Compare spending in Demo Everyday this month and last month.

@@ -19,6 +19,7 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
 import java.util.HexFormat;
+import java.util.Optional;
 import java.util.UUID;
 
 @Service
@@ -74,6 +75,25 @@ public class AuthService {
         userRepository.save(user);
 
         return createAuthSession(user);
+    }
+
+    @Transactional(readOnly = true)
+    public Optional<String> demoEmail() {
+        return activeDemo().map(User::getEmail);
+    }
+
+    @Transactional
+    public Optional<AuthResponse> demoLogin() {
+        return activeDemo().map(user -> {
+            user.setLastLoginAt(Instant.now());
+            return createAuthSession(user);
+        });
+    }
+
+    private Optional<User> activeDemo() {
+        return userRepository.findById(LocalDemoCredentials.DEMO_ID)
+                .filter(user -> LocalDemoCredentials.DEMO_EMAIL.equals(user.getEmail())
+                        && user.getAccountStatus() == AccountStatus.ACTIVE);
     }
 
     @Transactional

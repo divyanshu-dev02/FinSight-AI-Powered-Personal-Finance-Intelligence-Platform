@@ -7,11 +7,18 @@ import com.finsight.identity.service.UserService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.env.Environment;
+import org.springframework.core.env.Profiles;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
+
+import java.net.InetAddress;
+import java.net.UnknownHostException;
 
 @RestController
 @RequestMapping("/api/v1/auth")
@@ -20,10 +27,13 @@ public class AuthController {
 
     private final AuthService authService;
     private final UserService userService;
+    private final boolean localDemoEnabled;
 
-    public AuthController(AuthService authService, UserService userService) {
+    public AuthController(AuthService authService, UserService userService, Environment environment,
+                          @Value("${DEMO_LOGIN_ENABLED:false}") boolean demoLoginEnabled) {
         this.authService = authService;
         this.userService = userService;
+        this.localDemoEnabled = demoLoginEnabled && environment.acceptsProfiles(Profiles.of("local"));
     }
 
     @PostMapping("/register")
@@ -39,6 +49,37 @@ public class AuthController {
         AuthResponse response = authService.login(request);
         return ResponseEntity.ok(ApiResponse.success(response));
     }
+
+    @GetMapping("/demo")
+    ApiResponse<DemoAvailability> demoAvailability(HttpServletRequest request) {
+        var email = allowDemo(request) ? authService.demoEmail().orElse(null) : null;
+        return ApiResponse.success(new DemoAvailability(email));
+    }
+
+    @PostMapping("/demo")
+    ResponseEntity<ApiResponse<AuthResponse>> demoLogin(HttpServletRequest request) {
+        if (allowDemo(request)) {
+            var session = authService.demoLogin();
+            if (session.isPresent()) {
+                return ResponseEntity.ok(ApiResponse.success(session.get()));
+            }
+        }
+        return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .body(ApiResponse.error("DEMO_UNAVAILABLE", "The local demo is unavailable."));
+    }
+
+    private boolean allowDemo(HttpServletRequest request) {
+        if (!localDemoEnabled) {
+            return false;
+        }
+        try {
+            return InetAddress.getByName(request.getRemoteAddr()).isLoopbackAddress();
+        } catch (UnknownHostException exception) {
+            return false;
+        }
+    }
+
+    private record DemoAvailability(String email) {}
 
     @PostMapping("/refresh")
     @Operation(summary = "Rotate refresh token and issue a new access token")
