@@ -94,7 +94,7 @@ class GroqCopilotModel implements CopilotModel {
             payload.put("instructions", payload.path("instructions").asText()
                     + """
 
-Call a tool if you need financial evidence. When you have enough evidence or don't need a tool,
+                    Call a tool if you need financial evidence. When you have enough evidence or don't need a tool,
                     return only a JSON object with a string "answer" and an array of string "sourceRefs".
                     Use an empty array when you did not use any sources. Keep the answer concise.
                     """);

@@ -9,7 +9,6 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
-import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -23,11 +22,21 @@ import java.time.ZoneId;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Semaphore;
+import java.util.regex.Pattern;
 
 @Service
 class CopilotAgent {
 
     private static final int TOOL_LIMIT = 4;
+    private static final Pattern FINANCE_DATA = Pattern.compile(
+            "\\b(spend(?:ing)?|spent|expense(?:s)?|transaction(?:s)?|income|paycheck|salary|bill(?:s)?|budget(?:s)?|balance(?:s)?|account(?:s)?|goal(?:s)?|saving(?:s)?|payment(?:s)?|deposit(?:s)?|transfer(?:s)?|charge(?:s)?|merchant(?:s)?)\\b",
+            Pattern.CASE_INSENSITIVE);
+    private static final Pattern REFERENTIAL_SCOPE = Pattern.compile(
+            "^(?:and|why|what about|which ones|how much|how did)\\b|\\b(?:that|those|them)\\b", Pattern.CASE_INSENSITIVE);
+    private static final Pattern USER_REFERENCE = Pattern.compile("\\byou(?:r)?\\b", Pattern.CASE_INSENSITIVE);
+    private static final Pattern PERSONAL_SCOPE = Pattern.compile(
+            "\\b(my|our|i|we|mine|this month|last month|how much|upcoming|show|list|compare|total)\\b",
+            Pattern.CASE_INSENSITIVE);
     private static final String INSTRUCTIONS = """
             You are FinSight Copilot. Answer the latest question directly and support follow-ups.
             You can answer general questions and explain personal finance concepts. For any claims
@@ -37,12 +46,13 @@ class CopilotAgent {
             Use the specified dates, filters, and currencies. Keep currencies separate unless a tool provides
             converted values. Identify incomplete coverage, empty results, and assumptions. Do not infer
             current balances from past transactions or call a scheduled commitment a posted transaction.
-            For full-month comparisons, use analyze_transactions grouped by MONTH across both months in one call
-            when possible. For partial or separate periods, query each exact period. For totals use analyze_transactions;
-            search results are samples and cannot establish a total. Give date ranges and currency codes when useful.
-            Ask a short clarifying question when a user cannot be answered without a material assumption.
-            Respond with readable plain text, using short paragraphs or bullets. Put only the relevant,
-            exact source identifiers returned by the tools into sourceRefs. Never invent sources or include URLs.
+            For spending comparisons, prefer compare_transactions with both exact ranges and the relevant filters.
+            Use analyze_transactions for totals; individual transaction search cannot establish a total.
+            Ask a short clarifying question when necessary. For a personal finance-data answer, select the relevant
+            fact IDs returned by the tools. Write the IDs in the answer as {{F1}}, {{F2}}, and so on. FinSight
+            replaces these markers with complete verified statements. Select facts in useful reading order.
+            Never write your own figures or calculations. If the tool returns no data, choose its no-data fact.
+            Answer conceptual questions in plain language. Use sourceRefs for the relevant source IDs.
             """;
 
     private static final Map<String, Object> RESPONSE_FORMAT = Map.of("format", Map.of(
@@ -134,7 +144,7 @@ class CopilotAgent {
                 }
             }
             if (calls.isEmpty()) {
-                return parseAnswer(output, citations);
+                return parseAnswer(output, citations, request, used > 0);
             }
             if (!toolsEnabled || calls.size() > TOOL_LIMIT - used) {
                 throw incomplete();
@@ -154,7 +164,7 @@ class CopilotAgent {
         throw incomplete();
     }
 
-    private Answer parseAnswer(JsonNode output, CopilotTools.CitationBook citations) {
+    private Answer parseAnswer(JsonNode output, CopilotTools.CitationBook citations, Request request, boolean usedTool) {
         for (JsonNode item : output) {
             for (JsonNode part : item.path("content")) {
                 if ("refusal".equals(part.path("type").asText())) {
@@ -163,13 +173,55 @@ class CopilotAgent {
                 if ("output_text".equals(part.path("type").asText())) {
                     var reply = CopilotReply.parse(json, part.path("text").asText());
                     if (reply.isPresent()) {
-                        var decoded = reply.get();
-                        return new Answer(decoded.answer(), citations.resolve(decoded.sourceRefs()));
+                        return verifiedAnswer(reply.get(), citations, request, usedTool);
                     }
                 }
             }
         }
         throw incomplete();
+    }
+
+    private Answer verifiedAnswer(CopilotReply reply, CopilotTools.CitationBook citations,
+                                  Request request, boolean usedTool) {
+        var facts = citations.selectedFacts(reply);
+        if (!facts.isEmpty()) {
+            Set<String> sources = new LinkedHashSet<>();
+            StringBuilder answer = new StringBuilder();
+            for (var fact : facts) {
+                if (answer.length() + fact.text().length() > CopilotReply.MAX_ANSWER_LENGTH - 200) {
+                    break;
+                }
+                if (!answer.isEmpty()) answer.append('\n');
+                answer.append("• ").append(fact.text());
+                sources.add(fact.source());
+            }
+            List<String> references = List.copyOf(sources);
+            String notes = String.join(" ", citations.notesFor(references));
+            if (!notes.isEmpty() && answer.length() + notes.length() + 2 <= CopilotReply.MAX_ANSWER_LENGTH) {
+                answer.append("\n\n").append(notes);
+            }
+            return new Answer(answer.toString(), citations.resolve(references));
+        }
+        if (usedTool || asksAboutPersonalData(request, reply)) {
+            return new Answer("I couldn’t verify this from your FinSight data. Try specifying the account, category, or date range.", List.of());
+        }
+        return new Answer(reply.answer(), List.of());
+    }
+
+    private boolean asksAboutPersonalData(Request request, CopilotReply reply) {
+        String question = request.question().strip();
+        if ((FINANCE_DATA.matcher(question).find() && PERSONAL_SCOPE.matcher(question).find())
+                || !reply.sourceRefs().isEmpty()
+                || USER_REFERENCE.matcher(reply.answer()).find()
+                    && reply.answer().chars().anyMatch(Character::isDigit)
+                    && FINANCE_DATA.matcher(reply.answer()).find()) {
+            return true;
+        }
+        if (request.history() == null || !REFERENTIAL_SCOPE.matcher(question).find()) return false;
+        return request.history().stream().filter(message -> message.role().equals("user"))
+                .reduce((previous, latest) -> latest)
+                .map(message -> FINANCE_DATA.matcher(message.content()).find()
+                        && PERSONAL_SCOPE.matcher(message.content()).find()).orElse(false);
     }
 
     private String encode(Object value) {
@@ -205,7 +257,7 @@ class CopilotAgent {
     record Request(@NotBlank @Size(max = 1_800) String question, @AssertTrue boolean consent, YearMonth month,
                    boolean comparable, @Size(max = 20) String provider, @Size(max = 12) List<@NotNull @Valid Message> history) {}
 
-    record Message(@NotBlank @Pattern(regexp = "user|assistant") String role,
+    record Message(@NotBlank @jakarta.validation.constraints.Pattern(regexp = "user|assistant") String role,
                    @NotBlank @Size(max = CopilotReply.MAX_ANSWER_LENGTH) String content) {}
 
     record Answer(String answer, List<CopilotTools.Citation> sources) {}

@@ -129,16 +129,65 @@ class FinSightApplicationTests {
             assertThat(input).contains("evidence_call", "Local market").doesNotContain(evidence);
             return json.valueToTree(Map.of("output", List.of(Map.of("type", "message", "content", List.of(Map.of(
                     "type", "output_text", "text", json.writeValueAsString(Map.of(
-                            "answer", "You spent INR 125 and USD 40 in June. The market charge was INR 125.",
+                            "answer", "You spent INR 999 this month. {{F1}} {{F3}} {{F999}}",
                             "sourceRefs", List.of("S1", "S2", "S999")))))))));
         });
 
         mvc.perform(post("/api/v1/copilot/chat").header("Authorization", "Bearer " + owner)
                         .contentType("application/json").content(json.writeValueAsBytes(payload)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.answer").value("You spent INR 125 and USD 40 in June. The market charge was INR 125."))
+                .andExpect(jsonPath("$.data.answer").value(org.hamcrest.Matchers.allOf(
+                        org.hamcrest.Matchers.containsString("INR 125"), org.hamcrest.Matchers.containsString("USD 40"),
+                        org.hamcrest.Matchers.containsString("Local market"),
+                        org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("999")))))
                 .andExpect(jsonPath("$.data.sources.length()").value(2))
                 .andExpect(jsonPath("$.data.sources[1].path").value("/transactions?evidence=" + evidence));
+    }
+
+    @Test
+    void copilotUsesBackendComparisonMathAndShowsWhenAPeriodHasNoRecords() throws Exception {
+        String owner = register("agent-comparison@example.test");
+        String inr = account(owner, "INR");
+        String usd = account(owner, "USD");
+        datedExpense(owner, inr, "INR", "Market", 100, "2025-05-12");
+        datedExpense(owner, inr, "INR", "Market", 125, "2025-06-03");
+        datedExpense(owner, usd, "USD", "Books", 40, "2025-06-02");
+
+        var args = new java.util.HashMap<>(Map.of("start", "2025-06-01", "end", "2025-06-10",
+                "previousStart", "2025-05-11", "previousEnd", "2025-05-20", "direction", "DEBIT",
+                "merchant", "", "category", "", "account", "", "groupBy", "NONE"));
+        when(copilotModel.isAvailable()).thenReturn(true);
+        when(copilotModel.respond(anyMap())).thenReturn(agentCall("compare_transactions", "compare", args),
+                agentReply("Spending fell 80%. {{F1}}", List.of("S1")));
+
+        mvc.perform(post("/api/v1/copilot/chat").header("Authorization", "Bearer " + owner)
+                        .contentType("application/json").content(json.writeValueAsBytes(
+                                Map.of("question", "Compare my spending in these periods", "consent", true))))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.data.answer").value(org.hamcrest.Matchers.allOf(
+                        org.hamcrest.Matchers.containsString("INR 125 vs. INR 100"),
+                        org.hamcrest.Matchers.containsString("+25 INR (+25%)"),
+                        org.hamcrest.Matchers.containsString("USD 40 vs. no recorded entries"),
+                        org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("80%")))))
+                .andExpect(jsonPath("$.data.sources.length()").value(1));
+    }
+
+    @Test
+    void copilotDoesNotAnswerWithUnsupportedPersonalData() throws Exception {
+        String owner = register("agent-no-evidence@example.test");
+        when(copilotModel.isAvailable()).thenReturn(true);
+        when(copilotModel.respond(anyMap())).thenReturn(agentReply("You spent INR 9000 this month.", List.of()));
+
+        mvc.perform(post("/api/v1/copilot/chat").header("Authorization", "Bearer " + owner)
+                        .contentType("application/json").content(json.writeValueAsBytes(
+                                Map.of("question", "How much did I spend?", "consent", true))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.answer").value(org.hamcrest.Matchers.containsString("couldn’t verify")))
+                .andExpect(jsonPath("$.data.sources").isEmpty());
+    }
+
+    private JsonNode agentReply(String answer, List<String> sources) throws Exception {
+        return json.valueToTree(Map.of("output", List.of(Map.of("type", "message", "content", List.of(Map.of(
+                "type", "output_text", "text", json.writeValueAsString(Map.of("answer", answer, "sourceRefs", sources))))))));
     }
 
     @Test

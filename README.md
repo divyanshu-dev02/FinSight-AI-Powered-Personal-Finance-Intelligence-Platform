@@ -49,7 +49,10 @@ file at the repository root. Use one `NAME=value` per line.
 
 The app asks for consent before sharing the chat and the financial data
 required by the selected provider. Chat history stays in the current page
-session, and the finance tools are read-only. Copilot accepts valid
+session, and the finance tools are read-only. For personal data questions, the
+model selects facts from authenticated lookups and FinSight renders the exact
+amounts and source links. Period changes and percentages are calculated in
+the backend, with currencies kept separate. Copilot accepts valid
 Groq replies directly to save a request. When Groq rate-limits chat, the app
 uses the provider’s retry delay and keeps the spending shortcuts available.
 
