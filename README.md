@@ -4,6 +4,11 @@
 
 ### AI-Powered Personal Finance Intelligence Platform
 
+**[Open FinSight on Render](https://finsight-frontend-ue2k.onrender.com/login)**
+
+Select **Auto-fill Demo Credentials**, then **Sign In** to explore the sample data.
+To start with your own workspace, [create an account](https://finsight-frontend-ue2k.onrender.com/register).
+
 [![Java](https://img.shields.io/badge/Java-21-ED8B00?style=for-the-badge&logo=openjdk&logoColor=white)](https://openjdk.org/)
 [![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.x-6DB33F?style=for-the-badge&logo=springboot&logoColor=white)](https://spring.io/projects/spring-boot)
 [![React](https://img.shields.io/badge/React-19-61DAFB?style=for-the-badge&logo=react&logoColor=black)](https://react.dev/)
