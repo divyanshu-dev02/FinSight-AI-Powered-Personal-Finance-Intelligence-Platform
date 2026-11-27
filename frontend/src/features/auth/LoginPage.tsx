@@ -26,14 +26,25 @@ export function LoginPage() {
 
   useEffect(() => {
     const request = new AbortController();
-    api.get<ApiResponse<{ email?: string }>>('/auth/demo', { signal: request.signal })
-      .then(response => {
+    const retryDelays = [3_000, 7_000, 15_000, 25_000];
+    let timer: number | undefined;
+    async function loadDemo(attempt = 0) {
+      try {
+        const response = await api.get<ApiResponse<{ email?: string }>>('/auth/demo', { signal: request.signal });
+        if (response.data?.success !== true || !response.data.data) throw new Error('Backend response unavailable');
         if (!request.signal.aborted) setDemoEmail(response.data.data.email);
-      })
-      .catch(() => {
-        if (!request.signal.aborted) setDemoEmail(undefined);
-      });
-    return () => request.abort();
+      } catch {
+        const delay = retryDelays[attempt];
+        if (!request.signal.aborted && delay !== undefined) {
+          timer = window.setTimeout(() => void loadDemo(attempt + 1), delay);
+        }
+      }
+    }
+    void loadDemo();
+    return () => {
+      request.abort();
+      window.clearTimeout(timer);
+    };
   }, []);
 
   const {

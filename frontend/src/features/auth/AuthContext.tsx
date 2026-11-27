@@ -1,3 +1,4 @@
+import { isAxiosError } from 'axios';
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { api, ApiResponse } from '@/lib/api';
 import { User, AuthResponse } from '@/types/auth';
@@ -57,17 +58,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (response.data.success && response.data.data) {
           setUser(response.data.data);
           window.localStorage.setItem('user', JSON.stringify(response.data.data));
-        } else {
+        } else if (response.data.success === false) {
           window.localStorage.removeItem('accessToken');
           window.localStorage.removeItem('refreshToken');
           window.localStorage.removeItem('user');
           setUser(null);
         }
-      } catch {
-        window.localStorage.removeItem('accessToken');
-        window.localStorage.removeItem('refreshToken');
-        window.localStorage.removeItem('user');
-        setUser(null);
+      } catch (error) {
+        // An unavailable backend can still be waking up. Keep the saved session for the next request.
+        const status = isAxiosError(error) ? error.response?.status : undefined;
+        if (status === 401 || status === 403) {
+          window.localStorage.removeItem('accessToken');
+          window.localStorage.removeItem('refreshToken');
+          window.localStorage.removeItem('user');
+          setUser(null);
+        }
       } finally {
         setIsLoading(false);
       }
