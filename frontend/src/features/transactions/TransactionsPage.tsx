@@ -9,6 +9,7 @@ import { api, ApiResponse } from '@/lib/api';
 import { Transaction, FinancialAccount, Category } from '@/types/finance';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
+import { TransactionAmount } from '@/components/TransactionAmount';
 import { StatementImportModal } from './StatementImportModal';
 
 // Schema for manual expense/income transaction
@@ -408,16 +409,8 @@ export function TransactionsPage() {
                       )}
                     </div>
                   </td>
-                  <td
-                    className={`whitespace-nowrap px-6 py-4 text-right font-bold ${
-                      tx.isTransfer
-                        ? 'text-indigo-600'
-                        : tx.direction === 'CREDIT'
-                        ? 'text-emerald-600'
-                        : 'text-gray-900'
-                    }`}
-                  >
-                    {tx.direction === 'CREDIT' ? '+' : '-'} {formatCurrency(tx.amount, tx.currency)}
+                  <td className="whitespace-nowrap px-6 py-4 text-right">
+                    <TransactionAmount amount={tx.amount} currency={tx.currency} direction={tx.direction} isTransfer={tx.isTransfer} />
                   </td>
                   <td className="whitespace-nowrap px-6 py-4 text-right">
                     <button

@@ -89,8 +89,8 @@
   .metric-green { @apply bg-emerald-50 text-emerald-700; }
   .metric-orange { @apply bg-orange-50 text-orange-700; }
   .metric-purple { @apply bg-violet-50 text-violet-700; }
-  .metric-card dd { @apply mt-3 text-[clamp(0.95rem,3vw,1.65rem)] font-bold leading-tight tracking-tight text-[#17243d] tabular-nums; overflow-wrap: anywhere; }
-  .metric-card p { @apply mt-1.5 text-xs leading-snug text-slate-600; }
+  .metric-value { @apply mt-3 text-[clamp(0.95rem,3vw,1.65rem)] font-bold leading-tight tracking-tight text-[#17243d] tabular-nums; overflow-wrap: anywhere; }
+  .metric-detail { @apply mt-1.5 text-xs leading-snug text-slate-600; }
   .dashboard-grid { @apply grid min-w-0 gap-5 xl:grid-cols-[1.06fr_1fr]; align-items: start; }
   .dashboard-panel { @apply p-4 sm:p-5; }
   .recent-panel { @apply xl:col-span-2; }
@@ -122,7 +122,13 @@
   .recent-list strong, .recent-list small { @apply block; overflow-wrap: anywhere; }
   .recent-list strong { @apply text-sm font-semibold text-[#17243d]; }
   .recent-list small { @apply mt-0.5 text-xs text-slate-600; }
-  .recent-amount { @apply text-right text-xs font-semibold tabular-nums sm:text-sm; }
+  .transaction-amount { @apply inline-block text-right text-xs font-semibold tabular-nums sm:text-sm; }
+  .amount-positive { @apply text-emerald-700; }
+  .amount-negative { @apply text-rose-700; }
+  .amount-transfer { @apply text-slate-600; }
+  .metric-change { @apply font-semibold tabular-nums; }
+  .metric-card { @apply leading-snug; }
+  .recent-list li { @apply rounded-lg; }
 
   .auth-shell { @apply mx-auto grid min-h-dvh max-w-[1540px] bg-white md:grid-cols-[minmax(0,0.9fr)_minmax(0,1fr)]; }
   .auth-panel { @apply relative hidden min-h-full flex-col justify-between overflow-hidden bg-[#13295f] px-[clamp(2rem,5vw,5rem)] py-9 text-white md:flex; background-image: radial-gradient(ellipse at 100% 100%, #2f63d9, transparent 65%); }

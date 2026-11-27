@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
+import { TransactionAmount } from '@/components/TransactionAmount';
 import { useAuth } from '@/features/auth/AuthContext';
 import { PlanningSnapshot } from '@/features/planning/PlanningSnapshot';
 import { api, ApiResponse } from '@/lib/api';
@@ -129,13 +130,24 @@ export function DashboardPage() {
           {metricDefinitions.map(({ label, key, icon: Icon, tone, detail }) => {
             const value = summary.data?.[key];
             const change = changes[key];
+            const amountTone = !value ? '' : key === 'totalExpense' || value < 0 ? 'amount-negative' : key === 'totalIncome' ? 'amount-positive' : '';
+            const sign = key === 'totalIncome' && value && value > 0 ? '+' : key === 'totalExpense' && value && value > 0 ? '−' : '';
+            const favorableChange = key === 'totalExpense' ? (change ?? 0) < 0 : (change ?? 0) > 0;
             return (
               <div className="metric-card" key={key}>
                 <dt><span className={`metric-icon metric-${tone}`}><Icon size={18} aria-hidden="true" /></span>{label}</dt>
-                <dd>{value == null ? '—' : key === 'savingsRatePercentage' ? `${value}%` : formatCurrency(value, currency)}</dd>
-                <p>{change == null ? detail : `${change > 0 ? '+' : ''}${change}${key === 'savingsRatePercentage' ? ' pp' : '%'} vs previous month`}</p>
+                <dd className="metric-value"><span className={amountTone}>
+                  {value == null ? '—' : key === 'savingsRatePercentage' ? `${value}%` : `${sign}${formatCurrency(value, currency)}`}
+                </span></dd>
+                <dd className="metric-detail">
+                  {change == null ? detail : <>
+                    <span className={`metric-change ${change === 0 ? '' : favorableChange ? 'amount-positive' : 'amount-negative'}`}>
+                      {change > 0 ? '+' : change < 0 ? '−' : ''}{Math.abs(change)}{key === 'savingsRatePercentage' ? ' pp' : '%'}
+                    </span>{' '}vs last month
+                  </>}
+                </dd>
                 {key === 'totalNetWorth' && summary.data && (
-                  <p>Assets {formatCurrency(summary.data.totalAssets, currency)} · Loans {formatCurrency(summary.data.totalLiabilities, currency)}</p>
+                  <dd className="metric-detail">Assets {formatCurrency(summary.data.totalAssets, currency)} · Loans {formatCurrency(summary.data.totalLiabilities, currency)}</dd>
                 )}
               </div>
             );
@@ -178,7 +190,7 @@ export function DashboardPage() {
                     <li key={transaction.id}>
                       <span className={`metric-icon ${transaction.direction === 'CREDIT' && !transaction.isTransfer ? 'metric-green' : 'metric-blue'}`}><Icon size={17} aria-hidden="true" /></span>
                       <div><strong>{transaction.description}</strong><small>{formatDate(transaction.transactionDate)} · {transaction.accountName}{transaction.isTransfer && ' · Transfer'}</small></div>
-                      <span className="recent-amount">{transaction.direction === 'CREDIT' ? '+' : '−'}{formatCurrency(transaction.amount, transaction.currency)}</span>
+                      <TransactionAmount amount={transaction.amount} currency={transaction.currency} direction={transaction.direction} isTransfer={transaction.isTransfer} />
                     </li>
                   );
                 })}
